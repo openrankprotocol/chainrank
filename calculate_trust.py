@@ -336,7 +336,7 @@ class TrustCalculator:
 
         with open(output_path, "w", newline="") as f:
             writer = csv.writer(f)
-            writer.writerow(["from_address", "to_address", "trust_score"])
+            writer.writerow(["i", "j", "v"])
 
             for (from_addr, to_addr), score in sorted(
                 non_zero_edges.items(), key=lambda x: -x[1]

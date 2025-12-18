@@ -2,3 +2,5 @@
 /tmp/**
 /raw/**
 /trust/**
+/scores/**
+/output/**

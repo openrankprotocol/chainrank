@@ -17,6 +17,43 @@ ethereum = "0x87870Bca3F3fD6335C3F4ce8392D69350B4fA4E2"
 [seed_contracts.usdc]
 ethereum = "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48"
 
+# USDT Token contract
+[seed_contracts.usdt]
+ethereum = "0xdAC17F958D2ee523a2206206994597C13D831ec7"
+
+# WBTC Token contract
+[seed_contracts.wbtc]
+ethereum = "0x2260FAC5E5542a773Aa44fBCfeDf7C193bc2C599"
+
+# DAI Token contract
+[seed_contracts.dai]
+ethereum = "0x6B175474E89094C44Da98b954EesdeAC495271d0F"
+
+# WETH Token contract
+[seed_contracts.weth]
+ethereum = "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2"
+
+# Uniswap V3 Pools (top liquidity pools)
+# USDC/ETH 0.05%
+[seed_contracts.uniswap_v3_usdc_eth]
+ethereum = "0x88e6A0c2dDD26FEEb64F039a2c41296FcB3f5640"
+
+# WBTC/ETH 0.3%
+[seed_contracts.uniswap_v3_wbtc_eth]
+ethereum = "0xCBCdF9626bC03E24f779434178A73a0B4bad62eD"
+
+# USDC/USDT 0.01%
+[seed_contracts.uniswap_v3_usdc_usdt]
+ethereum = "0x3416cF6C708Da44DB2624D63ea0AAef7113527C6"
+
+# DAI/USDC 0.01%
+[seed_contracts.uniswap_v3_dai_usdc]
+ethereum = "0x5777d92f208679DB4b9778590Fa3CAB3aC9e2168"
+
+# WETH/USDT 0.05%
+[seed_contracts.uniswap_v3_weth_usdt]
+ethereum = "0x11b815efB8f581194ae79006d24E0d814B7697F6"
+
 # ═══════════════════════════════════════════════════════════════════════════════
 # ALLOWLISTED EVENTS
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -31,6 +68,33 @@ aave = [
 ]
 usdc = [
     "Transfer"
+]
+usdt = [
+    "Transfer"
+]
+wbtc = [
+    "Transfer"
+]
+dai = [
+    "Transfer"
+]
+weth = [
+    "Transfer"
+]
+uniswap_v3_usdc_eth = [
+    "UniswapV3Swap"
+]
+uniswap_v3_wbtc_eth = [
+    "UniswapV3Swap"
+]
+uniswap_v3_usdc_usdt = [
+    "UniswapV3Swap"
+]
+uniswap_v3_dai_usdc = [
+    "UniswapV3Swap"
+]
+uniswap_v3_weth_usdt = [
+    "UniswapV3Swap"
 ]
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -71,6 +135,33 @@ LiquidationCall_liquidated = -1.5     # Failed position management
 
 [trust_weights.usdc]
 Transfer = 0.8                        # USDC transfer activity
+
+[trust_weights.usdt]
+Transfer = 0.8                        # USDT transfer activity
+
+[trust_weights.wbtc]
+Transfer = 0.9                        # WBTC transfer activity (higher value)
+
+[trust_weights.dai]
+Transfer = 0.8                        # DAI transfer activity
+
+[trust_weights.weth]
+Transfer = 0.8                        # WETH transfer activity
+
+[trust_weights.uniswap_v3_usdc_eth]
+UniswapV3Swap = 0.6                   # Swap on USDC/ETH pool
+
+[trust_weights.uniswap_v3_wbtc_eth]
+UniswapV3Swap = 0.6                   # Swap on WBTC/ETH pool
+
+[trust_weights.uniswap_v3_usdc_usdt]
+UniswapV3Swap = 0.6                   # Swap on USDC/USDT pool
+
+[trust_weights.uniswap_v3_dai_usdc]
+UniswapV3Swap = 0.6                   # Swap on DAI/USDC pool
+
+[trust_weights.uniswap_v3_weth_usdt]
+UniswapV3Swap = 0.6                   # Swap on WETH/USDT pool
 
 [trust_output]
 trust_folder = "trust"

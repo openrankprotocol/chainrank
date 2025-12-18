@@ -34,6 +34,8 @@ PROTOCOL_DECIMALS = {
     "usdc": 6,
     "usdt": 6,
     "wbtc": 8,
+    "dai": 18,
+    "weth": 18,
     # Default for most tokens (ETH, AAVE, etc.) is 18
 }
 
@@ -247,6 +249,39 @@ class TrustCalculator:
             if from_addr and to_addr:
                 flows.append(
                     (from_addr, to_addr, amount_normalized, event_name, protocol, False)
+                )
+
+        elif event_name == "UniswapV3Swap":
+            # Uniswap V3 Swap - sender trusts the pool contract
+            sender = row.get("sender", "").lower()
+            # Use absolute value of amount0 or amount1 (one is positive, one negative)
+            amount0 = 0
+            amount1 = 0
+            if "amount0" in row and row["amount0"]:
+                try:
+                    amount0 = abs(int(row["amount0"]))
+                except (ValueError, TypeError):
+                    amount0 = 0
+            if "amount1" in row and row["amount1"]:
+                try:
+                    amount1 = abs(int(row["amount1"]))
+                except (ValueError, TypeError):
+                    amount1 = 0
+            # Use the larger amount (the one being sold)
+            swap_amount = max(amount0, amount1)
+            # Normalize (assume 18 decimals for most swaps)
+            amount_normalized = swap_amount / 1e18
+            if sender:
+                # Sender trusts the pool contract
+                flows.append(
+                    (
+                        sender,
+                        contract_address,
+                        amount_normalized,
+                        event_name,
+                        protocol,
+                        False,
+                    )
                 )
 
         return flows

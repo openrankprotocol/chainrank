@@ -48,6 +48,9 @@ EVENT_SIGNATURES = {
     # ERC-20 Events
     "Transfer": "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef",
     "Approval": "0x8c5be1e5ebec7d5bd14f71427d1e84f3dd0314c0f7b2291e5b200ac8c7c3b925",
+    # Uniswap V3 Pool Events
+    # Swap(address indexed sender, address indexed recipient, int256 amount0, int256 amount1, uint160 sqrtPriceX96, uint128 liquidity, int24 tick)
+    "UniswapV3Swap": "0xc42079f94a6350d7e6235f29174924f928cc2ac818eb64fed8004e115fbcca67",
 }
 
 
@@ -143,6 +146,32 @@ def decode_log_data(log: dict, event_name: str) -> dict[str, Any]:
         decoded["collateral_asset"] = _extract_address(topics[1])
         decoded["debt_asset"] = _extract_address(topics[2])
         decoded["user"] = _extract_address(topics[3])
+
+    elif event_name == "UniswapV3Swap" and len(topics) >= 3:
+        # Swap(address indexed sender, address indexed recipient, int256 amount0, int256 amount1, uint160 sqrtPriceX96, uint128 liquidity, int24 tick)
+        decoded["sender"] = _extract_address(topics[1])
+        decoded["recipient"] = _extract_address(topics[2])
+        data_hex = data.hex() if isinstance(data, bytes) else data
+        if len(data_hex) >= 322:  # 0x + 5*64 chars
+            # amount0 and amount1 are signed int256
+            amount0_hex = data_hex[2:66]
+            amount1_hex = data_hex[66:130]
+            decoded["amount0"] = (
+                int(amount0_hex, 16)
+                if int(amount0_hex, 16) < 2**255
+                else int(amount0_hex, 16) - 2**256
+            )
+            decoded["amount1"] = (
+                int(amount1_hex, 16)
+                if int(amount1_hex, 16) < 2**255
+                else int(amount1_hex, 16) - 2**256
+            )
+            decoded["sqrt_price_x96"] = int(data_hex[130:194], 16)
+            decoded["liquidity"] = int(data_hex[194:258], 16)
+            # tick is int24
+            tick_hex = data_hex[258:322]
+            tick_val = int(tick_hex, 16)
+            decoded["tick"] = tick_val if tick_val < 2**23 else tick_val - 2**24
 
     return decoded
 
@@ -340,6 +369,23 @@ class EventFetcher:
         print(f"\n  ✓ Completed: {total_events:,} events in {elapsed:.1f}s")
         return all_events
 
+    def _get_existing_files(self, chain_name: str) -> set[str]:
+        """Get set of protocol names that already have files for current year/month."""
+        year_month = f"{self.year}_{self.month:02d}"
+        pattern = f"{chain_name}_*_{year_month}.csv"
+        existing_files = list(self.raw_folder.glob(pattern))
+
+        # Extract protocol names from filenames like "ethereum_usdc_2025_01.csv"
+        existing_protocols = set()
+        for f in existing_files:
+            parts = f.stem.split("_")  # e.g., ["ethereum", "usdc", "2025", "01"]
+            if len(parts) >= 4:
+                # Protocol name is everything between chain and year_month
+                protocol = "_".join(parts[1:-2])
+                existing_protocols.add(protocol)
+
+        return existing_protocols
+
     def fetch_all_events(
         self, chains_filter: list[str] | None = None, contract_filter: str | None = None
     ) -> dict[str, list[dict]]:
@@ -392,11 +438,21 @@ class EventFetcher:
                 print(f"  ✗ Error connecting to {chain_name}: {e}")
                 continue
 
+            # Get existing files for this chain
+            existing_protocols = self._get_existing_files(chain_name)
+            if existing_protocols:
+                print(f"  Already fetched: {', '.join(sorted(existing_protocols))}")
+
             # Iterate through protocols
             for protocol_name, addresses in self.seed_contracts.items():
                 if contract_filter and protocol_name.lower() != contract_filter:
                     continue
                 if chain_name not in addresses:
+                    continue
+
+                # Skip if already fetched
+                if protocol_name in existing_protocols:
+                    print(f"\n  Skipping {protocol_name}: already exists in raw/")
                     continue
 
                 contract_address = addresses[chain_name]

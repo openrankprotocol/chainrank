@@ -1,0 +1,77 @@
+# ChainRank Event Indexer Configuration
+# ═══════════════════════════════════════════════════════════════════════════════
+
+# Time window for fetching events
+year = 2025
+month = 12
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# SEED CONTRACTS
+# ═══════════════════════════════════════════════════════════════════════════════
+
+# Aave V3 Pool contract
+[seed_contracts.aave]
+ethereum = "0x87870Bca3F3fD6335C3F4ce8392D69350B4fA4E2"
+
+# USDC Token contract
+[seed_contracts.usdc]
+ethereum = "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48"
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# ALLOWLISTED EVENTS
+# ═══════════════════════════════════════════════════════════════════════════════
+
+[allowlisted_events]
+aave = [
+    "Supply",
+    "Withdraw",
+    "Borrow",
+    "Repay",
+    "LiquidationCall"
+]
+usdc = [
+    "Transfer"
+]
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# OUTPUT CONFIGURATION
+# ═══════════════════════════════════════════════════════════════════════════════
+
+[output]
+raw_folder = "raw"
+file_format = "csv"
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# INDEXER SETTINGS
+# ═══════════════════════════════════════════════════════════════════════════════
+
+[indexer]
+batch_size = 2000
+max_retries = 3
+retry_delay_seconds = 1
+rate_limit_per_second = 10
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# TRUST CALCULATION WEIGHTS (per protocol)
+# ═══════════════════════════════════════════════════════════════════════════════
+# Formula: trust = max(0, log2(amount) * event_weight)
+
+[trust_weights.aave]
+# Positive trust signals (trust building)
+Supply = 1.0                          # Baseline - capital commitment
+Repay = 1.5                           # Highest trust - fulfilled debt obligation
+LiquidationCall_liquidator = 1.2      # Maintains protocol health
+
+# Neutral / context-dependent signals
+Borrow = 0.4                          # Creates debt - trust depends on repayment
+Withdraw = 0.3                        # Normal behavior, reduces commitment
+
+# Negative trust signals (trust reducing)
+LiquidationCall_liquidated = -1.5     # Failed position management
+
+[trust_weights.usdc]
+Transfer = 0.8                        # USDC transfer activity
+
+[trust_output]
+trust_folder = "trust"
+ens_verification_multiplier = 2.0

@@ -2,16 +2,17 @@
 """
 ChainRank Score Processor
 ═══════════════════════════════════════════════════════════════════════════════
-Maps addresses to ENS names in score files (i,v format) and saves to output folder.
+Maps addresses to ENS names, Farcaster names, and CEX names in score files (i,v format) and saves to output folder.
 
 Usage:
     python process_scores.py
     python process_scores.py --input scores/ethereum.csv
-    python process_scores.py --ens raw/ens_names.csv
+    python process_scores.py --ens raw/ens_names_2025.csv
 """
 
 import argparse
 import csv
+import json
 from pathlib import Path
 
 import toml
@@ -39,18 +40,76 @@ def load_ens_mapping(ens_path: Path) -> dict[str, str]:
     return mapping
 
 
-def find_ens_file(raw_folder: Path) -> Path | None:
-    """Find the ENS names CSV file."""
-    ens_path = raw_folder / "ens_names.csv"
-    if ens_path.exists():
-        return ens_path
-    return None
+def find_ens_files(raw_folder: Path) -> list[Path]:
+    """Find all ENS names CSV files (ens_names_*.csv)."""
+    return sorted(raw_folder.glob("ens_names_*.csv"))
+
+
+def load_cex_mapping(raw_folder: Path) -> dict[str, str]:
+    """Load CEX addresses mapping from cex_addresses.csv."""
+    cex_path = raw_folder / "cex_addresses.csv"
+    mapping = {}
+    if not cex_path.exists():
+        return mapping
+    with open(cex_path, "r") as f:
+        reader = csv.DictReader(f)
+        for row in reader:
+            address = row.get("address", "").lower()
+            distinct_name = row.get("distinct_name", "")
+            if address and distinct_name:
+                mapping[address] = distinct_name
+    return mapping
+
+
+def load_ens_mapping_from_files(ens_paths: list[Path]) -> dict[str, str]:
+    """Load ENS names mapping from multiple CSV files, merging them."""
+    mapping = {}
+    for ens_path in ens_paths:
+        with open(ens_path, "r") as f:
+            reader = csv.DictReader(f)
+            for row in reader:
+                address = row.get("address", "").lower()
+                ens_name = row.get("ens_name", "")
+                if address and ens_name:
+                    mapping[address] = ens_name
+    return mapping
+
+
+def load_fc_mapping(raw_folder: Path) -> dict[str, str]:
+    """Load Farcaster addresses mapping from fc_addresses.csv."""
+    fc_path = raw_folder / "fc_addresses.csv"
+    mapping = {}
+    if not fc_path.exists():
+        return mapping
+    with open(fc_path, "r") as f:
+        reader = csv.DictReader(f)
+        for row in reader:
+            fname = row.get("fname", "")
+            addresses_json = row.get("verified_addresses", "[]")
+            if not fname:
+                continue
+            try:
+                addresses = json.loads(addresses_json)
+                for addr in addresses:
+                    # Only include 20-byte Ethereum addresses (42 chars with 0x)
+                    if addr and len(addr) == 42 and addr.startswith("0x"):
+                        addr_lower = addr.lower()
+                        # Don't overwrite if already mapped
+                        if addr_lower not in mapping:
+                            mapping[addr_lower] = fname
+            except json.JSONDecodeError:
+                pass
+    return mapping
 
 
 def process_score_file(
-    input_path: Path, output_path: Path, ens_mapping: dict[str, str]
+    input_path: Path,
+    output_path: Path,
+    ens_mapping: dict[str, str],
+    cex_mapping: dict[str, str],
+    fc_mapping: dict[str, str],
 ):
-    """Process a score file and map addresses to ENS names."""
+    """Process a score file and map addresses to ENS/FC/CEX names."""
     rows = []
 
     with open(input_path, "r") as f:
@@ -59,8 +118,15 @@ def process_score_file(
             i_addr = row.get("i", "").lower()
             v = row.get("v", "")
 
-            # Map address to ENS name if available
-            i_name = ens_mapping.get(i_addr, i_addr)
+            # Map address: CEX first, then ENS, then FC, fallback to address
+            if i_addr in cex_mapping:
+                i_name = cex_mapping[i_addr]
+            elif i_addr in ens_mapping:
+                i_name = ens_mapping[i_addr]
+            elif i_addr in fc_mapping:
+                i_name = fc_mapping[i_addr]
+            else:
+                i_name = i_addr
 
             rows.append({"i": i_name, "v": v})
 
@@ -88,7 +154,7 @@ def main():
         "--ens",
         type=str,
         default=None,
-        help="Path to ENS names CSV file (default: raw/ens_names.csv)",
+        help="Path to specific ENS names CSV file (default: all ens_names_*.csv in raw folder)",
     )
 
     args = parser.parse_args()
@@ -113,17 +179,27 @@ def main():
 
     # Load ENS mapping
     if args.ens:
-        ens_path = Path(args.ens)
+        ens_paths = [Path(args.ens)]
     else:
-        ens_path = find_ens_file(raw_folder)
+        ens_paths = find_ens_files(raw_folder)
 
-    if not ens_path or not ens_path.exists():
-        print("Error: ENS file not found")
+    if not ens_paths:
+        print("Error: No ENS files found")
         return 1
 
-    print(f"ENS file: {ens_path}")
-    ens_mapping = load_ens_mapping(ens_path)
+    print(f"ENS files: {len(ens_paths)} file(s)")
+    for p in ens_paths:
+        print(f"  - {p.name}")
+    ens_mapping = load_ens_mapping_from_files(ens_paths)
     print(f"Loaded {len(ens_mapping):,} ENS mappings")
+
+    # Load CEX mapping
+    cex_mapping = load_cex_mapping(raw_folder)
+    print(f"Loaded {len(cex_mapping):,} CEX mappings")
+
+    # Load Farcaster mapping
+    fc_mapping = load_fc_mapping(raw_folder)
+    print(f"Loaded {len(fc_mapping):,} Farcaster mappings")
     print()
 
     # Find input files
@@ -142,7 +218,9 @@ def main():
 
     for input_path in input_paths:
         output_path = output_folder / input_path.name
-        row_count = process_score_file(input_path, output_path, ens_mapping)
+        row_count = process_score_file(
+            input_path, output_path, ens_mapping, cex_mapping, fc_mapping
+        )
         print(f"  ✓ {input_path.name} -> {output_path.name} ({row_count:,} rows)")
 
     print()

@@ -17,8 +17,10 @@ Environment Variables (in .env file):
 import argparse
 import calendar
 import csv
+import gc
 import os
 import time
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -45,6 +47,45 @@ EVENT_SIGNATURES = {
     "FlashLoan": "0xefefaba5e921573100900a3ad9cf29f222d995fb3b6045797eaea7521bd8d6f0",
     "ReserveUsedAsCollateralEnabled": "0x00058a56ea94653cdf4f152d227ace22d4c00ad99e2a43f58cb7d9e3feb295f2",
     "ReserveUsedAsCollateralDisabled": "0x44c58d81365b66dd4b1a7f36c25aa97b8c71c361ee4937adc1a00000227db5dd",
+    # Compound V2 cToken Events
+    # Mint(address minter, uint256 mintAmount, uint256 mintTokens)
+    "Mint": "0x4c209b5fc8ad50758f13e2e1088ba56a560dff690a1c6fef26394f4c03821c4f",
+    # Redeem(address redeemer, uint256 redeemAmount, uint256 redeemTokens)
+    "Redeem": "0xe5b754fb1abb7f01b499791d0b820ae3b6af3424ac1c59768edb53f4ec31a929",
+    # Borrow(address borrower, uint256 borrowAmount, uint256 accountBorrows, uint256 totalBorrows)
+    "CompoundBorrow": "0x13ed6866d4e1ee6da46f845c46d7e54120883d75c5ea9a2dacc1c4ca8984ab80",
+    # RepayBorrow(address payer, address borrower, uint256 repayAmount, uint256 accountBorrows, uint256 totalBorrows)
+    "RepayBorrow": "0x1a2a22cb034d26d1854bdc6666a5b91fe25efbbb5dcad3b0355478d6f5c362a1",
+    # LiquidateBorrow(address liquidator, address borrower, uint256 repayAmount, address cTokenCollateral, uint256 seizeTokens)
+    "LiquidateBorrow": "0x298637f684da70674f26509b10f07ec2fbc77a335ab1e7d6215a4b2484d8bb52",
+    # Compound Comptroller Events
+    # DistributedSupplierComp(address indexed cToken, address indexed supplier, uint256 compDelta, uint256 compSupplyIndex)
+    "DistributedSupplierComp": "0x2caecd17d02f56fa897705dcc740da2d237c373f70686f4e0d9bd3bf0400ea7a",
+    # DistributedBorrowerComp(address indexed cToken, address indexed borrower, uint256 compDelta, uint256 compBorrowIndex)
+    "DistributedBorrowerComp": "0x1fc3ecc087d8d2d15e23d0032af5a47571a93e0005cf5a61031e3d5c6d40b185",
+    # Morpho Blue Events
+    # Supply(bytes32 indexed id, address indexed caller, address indexed onBehalf, uint256 assets, uint256 shares)
+    "MorphoSupply": "0xedf8870433c83823eb071d3df1caa8d008f12f6440918c20d75a3602cda30fe0",
+    # Withdraw(bytes32 indexed id, address caller, address indexed onBehalf, address indexed receiver, uint256 assets, uint256 shares)
+    "MorphoWithdraw": "0xa56fc0ad5702ec05ce63666221f796fb62437c32db1aa1aa075fc6484cf58fbf",
+    # Borrow(bytes32 indexed id, address caller, address indexed onBehalf, address indexed receiver, uint256 assets, uint256 shares)
+    "MorphoBorrow": "0x570954540bed6b1304a87dfe815a5eda4a648f7097a16240dcd85c9b5fd42a43",
+    # Repay(bytes32 indexed id, address indexed caller, address indexed onBehalf, uint256 assets, uint256 shares)
+    "MorphoRepay": "0x52acb05cebbd3cd39715469f22afbf5a17496295ef3bc9bb5944056c63ccaa09",
+    # Liquidate(bytes32 indexed id, address indexed caller, address indexed borrower, uint256 repaidAssets, uint256 repaidShares, uint256 seizedAssets, uint256 badDebtAssets, uint256 badDebtShares)
+    "MorphoLiquidate": "0xa4946ede45d0c6f06a0f5ce92c9ad3b4751452571a9f579dcf878f1c8e1cd892",
+    # Fluid Liquidity Events
+    # LogOperate(address indexed user, address indexed token, int256 supplyAmount, int256 borrowAmount, address withdrawTo, address borrowTo, uint256 totalAmounts, uint256 exchangePricesAndConfig)
+    "FluidOperate": "0x4d93b232a24e82b284ced7461bf4deacffe66759d5c24513e6f29e571ad78d15",
+    # DEX Aggregator Events
+    # 1inch v5: OrderFilled(address indexed maker, bytes32 orderHash, uint256 remainingAmount)
+    "OneInchSwapped": "0xb9ed0243fdf00f0545c63a0af8850c090d86bb46682baec4bf3c496814fe4f02",
+    # 0x Exchange: TransformedERC20(address indexed taker, address inputToken, address outputToken, uint256 inputTokenAmount, uint256 outputTokenAmount)
+    "ZeroExTransformedERC20": "0x0f6672f78a59ba8e5e5b5d38df3ebc67f3c792e2c9259b8d97d7f00dd78ba1b3",
+    # Paraswap v5: SwappedV3(bytes16 uuid, address partner, uint256 feePercent, address initiator, address indexed beneficiary, address indexed srcToken, address indexed destToken, uint256 srcAmount, uint256 receivedAmount, uint256 expectedAmount)
+    "ParaswapSwapped": "0xe00361d207b252a464323eb23d45d42583e391f2031acdd2e9fa36efddd43cb0",
+    # CoW Protocol: Trade(address indexed owner, address sellToken, address buyToken, uint256 sellAmount, uint256 buyAmount, uint256 feeAmount, bytes orderUid)
+    "CowTrade": "0xa07a543ab8a018198e99ca0184c93fe9050a79400a0a723441f84de1d972cc17",
     # ERC-20 Events
     "Transfer": "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef",
     "Approval": "0x8c5be1e5ebec7d5bd14f71427d1e84f3dd0314c0f7b2291e5b200ac8c7c3b925",
@@ -147,6 +188,209 @@ def decode_log_data(log: dict, event_name: str) -> dict[str, Any]:
         decoded["debt_asset"] = _extract_address(topics[2])
         decoded["user"] = _extract_address(topics[3])
 
+    # Compound V2 cToken Events
+    elif event_name == "Mint":
+        # Mint(address minter, uint256 mintAmount, uint256 mintTokens)
+        data_hex = data.hex() if isinstance(data, bytes) else data
+        if len(data_hex) >= 194:  # 0x + 3*64 chars
+            decoded["minter"] = "0x" + data_hex[26:66]  # address is padded
+            decoded["mint_amount"] = int(data_hex[66:130], 16)
+            decoded["mint_tokens"] = int(data_hex[130:194], 16)
+
+    elif event_name == "Redeem":
+        # Redeem(address redeemer, uint256 redeemAmount, uint256 redeemTokens)
+        data_hex = data.hex() if isinstance(data, bytes) else data
+        if len(data_hex) >= 194:
+            decoded["redeemer"] = "0x" + data_hex[26:66]
+            decoded["redeem_amount"] = int(data_hex[66:130], 16)
+            decoded["redeem_tokens"] = int(data_hex[130:194], 16)
+
+    elif event_name == "CompoundBorrow" or event_name == "Borrow":
+        # For Compound: Borrow(address borrower, uint256 borrowAmount, uint256 accountBorrows, uint256 totalBorrows)
+        # Check if this looks like Compound format (no indexed params, all in data)
+        data_hex = data.hex() if isinstance(data, bytes) else data
+        if (
+            len(data_hex) >= 258 and len(topics) == 1
+        ):  # Compound style - no indexed params
+            decoded["borrower"] = "0x" + data_hex[26:66]
+            decoded["borrow_amount"] = int(data_hex[66:130], 16)
+            decoded["account_borrows"] = int(data_hex[130:194], 16)
+            decoded["total_borrows"] = int(data_hex[194:258], 16)
+
+    elif event_name == "RepayBorrow":
+        # RepayBorrow(address payer, address borrower, uint256 repayAmount, uint256 accountBorrows, uint256 totalBorrows)
+        data_hex = data.hex() if isinstance(data, bytes) else data
+        if len(data_hex) >= 322:
+            decoded["payer"] = "0x" + data_hex[26:66]
+            decoded["borrower"] = "0x" + data_hex[90:130]
+            decoded["repay_amount"] = int(data_hex[130:194], 16)
+            decoded["account_borrows"] = int(data_hex[194:258], 16)
+            decoded["total_borrows"] = int(data_hex[258:322], 16)
+
+    elif event_name == "LiquidateBorrow":
+        # LiquidateBorrow(address liquidator, address borrower, uint256 repayAmount, address cTokenCollateral, uint256 seizeTokens)
+        data_hex = data.hex() if isinstance(data, bytes) else data
+        if len(data_hex) >= 322:
+            decoded["liquidator"] = "0x" + data_hex[26:66]
+            decoded["borrower"] = "0x" + data_hex[90:130]
+            decoded["repay_amount"] = int(data_hex[130:194], 16)
+            decoded["ctoken_collateral"] = "0x" + data_hex[218:258]
+            decoded["seize_tokens"] = int(data_hex[258:322], 16)
+
+    elif event_name == "DistributedSupplierComp" and len(topics) >= 3:
+        # DistributedSupplierComp(address indexed cToken, address indexed supplier, uint256 compDelta, uint256 compSupplyIndex)
+        decoded["ctoken"] = _extract_address(topics[1])
+        decoded["supplier"] = _extract_address(topics[2])
+        data_hex = data.hex() if isinstance(data, bytes) else data
+        if len(data_hex) >= 130:
+            decoded["comp_delta"] = int(data_hex[2:66], 16)
+            decoded["comp_supply_index"] = int(data_hex[66:130], 16)
+
+    elif event_name == "DistributedBorrowerComp" and len(topics) >= 3:
+        # DistributedBorrowerComp(address indexed cToken, address indexed borrower, uint256 compDelta, uint256 compBorrowIndex)
+        decoded["ctoken"] = _extract_address(topics[1])
+        decoded["borrower"] = _extract_address(topics[2])
+        data_hex = data.hex() if isinstance(data, bytes) else data
+        if len(data_hex) >= 130:
+            decoded["comp_delta"] = int(data_hex[2:66], 16)
+            decoded["comp_borrow_index"] = int(data_hex[66:130], 16)
+
+    # Morpho Blue Events
+    elif event_name == "MorphoSupply" and len(topics) >= 4:
+        # Supply(bytes32 indexed id, address indexed caller, address indexed onBehalf, uint256 assets, uint256 shares)
+        decoded["market_id"] = (
+            topics[1].hex() if isinstance(topics[1], bytes) else topics[1]
+        )
+        decoded["caller"] = _extract_address(topics[2])
+        decoded["on_behalf_of"] = _extract_address(topics[3])
+        data_hex = data.hex() if isinstance(data, bytes) else data
+        if len(data_hex) >= 130:
+            decoded["assets"] = int(data_hex[2:66], 16)
+            decoded["shares"] = int(data_hex[66:130], 16)
+
+    elif event_name == "MorphoWithdraw" and len(topics) >= 4:
+        # Withdraw(bytes32 indexed id, address caller, address indexed onBehalf, address indexed receiver, uint256 assets, uint256 shares)
+        decoded["market_id"] = (
+            topics[1].hex() if isinstance(topics[1], bytes) else topics[1]
+        )
+        decoded["on_behalf_of"] = _extract_address(topics[2])
+        decoded["receiver"] = _extract_address(topics[3])
+        data_hex = data.hex() if isinstance(data, bytes) else data
+        if len(data_hex) >= 194:
+            decoded["caller"] = "0x" + data_hex[26:66]
+            decoded["assets"] = int(data_hex[66:130], 16)
+            decoded["shares"] = int(data_hex[130:194], 16)
+
+    elif event_name == "MorphoBorrow" and len(topics) >= 4:
+        # Borrow(bytes32 indexed id, address caller, address indexed onBehalf, address indexed receiver, uint256 assets, uint256 shares)
+        decoded["market_id"] = (
+            topics[1].hex() if isinstance(topics[1], bytes) else topics[1]
+        )
+        decoded["on_behalf_of"] = _extract_address(topics[2])
+        decoded["receiver"] = _extract_address(topics[3])
+        data_hex = data.hex() if isinstance(data, bytes) else data
+        if len(data_hex) >= 194:
+            decoded["caller"] = "0x" + data_hex[26:66]
+            decoded["assets"] = int(data_hex[66:130], 16)
+            decoded["shares"] = int(data_hex[130:194], 16)
+
+    elif event_name == "MorphoRepay" and len(topics) >= 4:
+        # Repay(bytes32 indexed id, address indexed caller, address indexed onBehalf, uint256 assets, uint256 shares)
+        decoded["market_id"] = (
+            topics[1].hex() if isinstance(topics[1], bytes) else topics[1]
+        )
+        decoded["caller"] = _extract_address(topics[2])
+        decoded["on_behalf_of"] = _extract_address(topics[3])
+        data_hex = data.hex() if isinstance(data, bytes) else data
+        if len(data_hex) >= 130:
+            decoded["assets"] = int(data_hex[2:66], 16)
+            decoded["shares"] = int(data_hex[66:130], 16)
+
+    elif event_name == "MorphoLiquidate" and len(topics) >= 4:
+        # Liquidate(bytes32 indexed id, address indexed caller, address indexed borrower, uint256 repaidAssets, uint256 repaidShares, uint256 seizedAssets, uint256 badDebtAssets, uint256 badDebtShares)
+        decoded["market_id"] = (
+            topics[1].hex() if isinstance(topics[1], bytes) else topics[1]
+        )
+        decoded["liquidator"] = _extract_address(topics[2])
+        decoded["borrower"] = _extract_address(topics[3])
+        data_hex = data.hex() if isinstance(data, bytes) else data
+        if len(data_hex) >= 322:
+            decoded["repaid_assets"] = int(data_hex[2:66], 16)
+            decoded["repaid_shares"] = int(data_hex[66:130], 16)
+            decoded["seized_assets"] = int(data_hex[130:194], 16)
+            decoded["bad_debt_assets"] = int(data_hex[194:258], 16)
+            decoded["bad_debt_shares"] = int(data_hex[258:322], 16)
+
+    # Fluid Liquidity Events
+    elif event_name == "FluidOperate" and len(topics) >= 3:
+        # Operate(address indexed user, address indexed token, int256 supplyAmount, int256 borrowAmount, address withdrawTo, address borrowTo, uint256 totalAmounts, uint256 exchangePricesAndConfig)
+        decoded["user"] = _extract_address(topics[1])
+        decoded["token"] = _extract_address(topics[2])
+        data_hex = data.hex() if isinstance(data, bytes) else data
+        if len(data_hex) >= 386:
+            # supplyAmount and borrowAmount are signed int256
+            supply_hex = data_hex[2:66]
+            borrow_hex = data_hex[66:130]
+            decoded["supply_amount"] = (
+                int(supply_hex, 16)
+                if int(supply_hex, 16) < 2**255
+                else int(supply_hex, 16) - 2**256
+            )
+            decoded["borrow_amount"] = (
+                int(borrow_hex, 16)
+                if int(borrow_hex, 16) < 2**255
+                else int(borrow_hex, 16) - 2**256
+            )
+            decoded["withdraw_to"] = "0x" + data_hex[154:194]
+            decoded["borrow_to"] = "0x" + data_hex[218:258]
+            decoded["total_amounts"] = int(data_hex[258:322], 16)
+            decoded["exchange_prices_and_config"] = int(data_hex[322:386], 16)
+
+    # DEX Aggregator Events
+    elif event_name == "OneInchSwapped" and len(topics) >= 2:
+        # OrderFilled(address indexed maker, bytes32 orderHash, uint256 remainingAmount)
+        decoded["maker"] = _extract_address(topics[1])
+        data_hex = data.hex() if isinstance(data, bytes) else data
+        if len(data_hex) >= 130:
+            decoded["order_hash"] = "0x" + data_hex[2:66]
+            decoded["remaining_amount"] = int(data_hex[66:130], 16)
+
+    elif event_name == "ZeroExTransformedERC20" and len(topics) >= 2:
+        # TransformedERC20(address indexed taker, address inputToken, address outputToken, uint256 inputTokenAmount, uint256 outputTokenAmount)
+        decoded["taker"] = _extract_address(topics[1])
+        data_hex = data.hex() if isinstance(data, bytes) else data
+        if len(data_hex) >= 258:
+            decoded["input_token"] = "0x" + data_hex[26:66]
+            decoded["output_token"] = "0x" + data_hex[90:130]
+            decoded["input_amount"] = int(data_hex[130:194], 16)
+            decoded["output_amount"] = int(data_hex[194:258], 16)
+
+    elif event_name == "ParaswapSwapped" and len(topics) >= 4:
+        # SwappedV3(bytes16 uuid, address partner, uint256 feePercent, address initiator, address indexed beneficiary, address indexed srcToken, address indexed destToken, uint256 srcAmount, uint256 receivedAmount, uint256 expectedAmount)
+        decoded["beneficiary"] = _extract_address(topics[1])
+        decoded["src_token"] = _extract_address(topics[2])
+        decoded["dest_token"] = _extract_address(topics[3])
+        data_hex = data.hex() if isinstance(data, bytes) else data
+        if len(data_hex) >= 450:
+            decoded["uuid"] = "0x" + data_hex[2:34]
+            decoded["partner"] = "0x" + data_hex[58:98]
+            decoded["fee_percent"] = int(data_hex[98:162], 16)
+            decoded["initiator"] = "0x" + data_hex[186:226]
+            decoded["src_amount"] = int(data_hex[226:290], 16)
+            decoded["received_amount"] = int(data_hex[290:354], 16)
+            decoded["expected_amount"] = int(data_hex[354:418], 16)
+
+    elif event_name == "CowTrade" and len(topics) >= 2:
+        # Trade(address indexed owner, address sellToken, address buyToken, uint256 sellAmount, uint256 buyAmount, uint256 feeAmount, bytes orderUid)
+        decoded["owner"] = _extract_address(topics[1])
+        data_hex = data.hex() if isinstance(data, bytes) else data
+        if len(data_hex) >= 322:
+            decoded["sell_token"] = "0x" + data_hex[26:66]
+            decoded["buy_token"] = "0x" + data_hex[90:130]
+            decoded["sell_amount"] = int(data_hex[130:194], 16)
+            decoded["buy_amount"] = int(data_hex[194:258], 16)
+            decoded["fee_amount"] = int(data_hex[258:322], 16)
+
     elif event_name == "UniswapV3Swap" and len(topics) >= 3:
         # Swap(address indexed sender, address indexed recipient, int256 amount0, int256 amount1, uint160 sqrtPriceX96, uint128 liquidity, int24 tick)
         decoded["sender"] = _extract_address(topics[1])
@@ -207,6 +451,8 @@ class EventFetcher:
         self.max_retries = self.indexer_config.get("max_retries", 3)
         self.retry_delay = self.indexer_config.get("retry_delay_seconds", 1)
         self.rate_limit = self.indexer_config.get("rate_limit_per_second", 10)
+        self.parallel_batches = self.indexer_config.get("parallel_batches", 10)
+        self.save_interval = self.indexer_config.get("save_interval_batches", 10)
 
         self.raw_folder = Path(self.output_config.get("raw_folder", "raw"))
         self.raw_folder.mkdir(parents=True, exist_ok=True)
@@ -243,7 +489,23 @@ class EventFetcher:
         from_block: int,
         to_block: int,
     ) -> list[dict]:
-        """Fetch logs for a batch of blocks with retry logic."""
+        """Fetch logs for a batch of blocks with retry logic and automatic splitting."""
+        return self._fetch_logs_with_splitting(
+            w3, contract_address, topics, from_block, to_block
+        )
+
+    def _fetch_logs_with_splitting(
+        self,
+        w3: Web3,
+        contract_address: str,
+        topics: list[str],
+        from_block: int,
+        to_block: int,
+        depth: int = 0,
+    ) -> list[dict]:
+        """Fetch logs, automatically splitting range if response is too big."""
+        max_depth = 8  # Max splits: 2^8 = 256x smaller batches
+
         for attempt in range(self.max_retries):
             try:
                 self._rate_limit_wait()
@@ -257,13 +519,91 @@ class EventFetcher:
                 )
                 return logs
             except Exception as e:
-                if attempt < self.max_retries - 1:
+                error_str = str(e)
+                # Check if response is too big - split the range
+                if "too big" in error_str.lower() or "-32008" in error_str:
+                    if depth >= max_depth:
+                        print(
+                            f"\n  Max split depth reached, skipping blocks {from_block}-{to_block}"
+                        )
+                        return []
+                    # Split range in half and fetch recursively
+                    mid_block = (from_block + to_block) // 2
+                    if mid_block == from_block:
+                        print(f"\n  Cannot split further, skipping block {from_block}")
+                        return []
+                    logs_first = self._fetch_logs_with_splitting(
+                        w3, contract_address, topics, from_block, mid_block, depth + 1
+                    )
+                    logs_second = self._fetch_logs_with_splitting(
+                        w3, contract_address, topics, mid_block + 1, to_block, depth + 1
+                    )
+                    return logs_first + logs_second
+                elif attempt < self.max_retries - 1:
                     print(f"  Retry {attempt + 1}/{self.max_retries} after error: {e}")
                     time.sleep(self.retry_delay * (attempt + 1))
                 else:
                     print(f"  Failed after {self.max_retries} attempts: {e}")
                     return []
         return []
+
+    def _process_logs(
+        self,
+        logs: list[dict],
+        chain_name: str,
+        protocol_name: str,
+        contract_address: str,
+        event_map: dict[str, str],
+    ) -> list[dict]:
+        """Process logs and convert to event records."""
+        events = []
+        for log in logs:
+            topic0 = (
+                log["topics"][0].hex()
+                if isinstance(log["topics"][0], bytes)
+                else log["topics"][0]
+            )
+            # Ensure 0x prefix for matching
+            if not topic0.startswith("0x"):
+                topic0 = "0x" + topic0
+            event_name = event_map.get(topic0.lower(), "Unknown")
+
+            # Decode event data
+            decoded = decode_log_data(log, event_name)
+
+            event_record = {
+                "chain_name": chain_name,
+                "protocol": protocol_name,
+                "contract_address": contract_address,
+                "event_name": event_name,
+                "block_number": log["blockNumber"],
+                "transaction_hash": (
+                    log["transactionHash"].hex()
+                    if isinstance(log["transactionHash"], bytes)
+                    else log["transactionHash"]
+                ),
+                "log_index": log["logIndex"],
+                "tx_index": log.get("transactionIndex", 0),
+                **decoded,
+            }
+            events.append(event_record)
+        return events
+
+    def _fetch_batch_task(
+        self,
+        chain_name: str,
+        contract_address: str,
+        event_topics: list[str],
+        batch_start: int,
+        batch_end: int,
+        batch_num: int,
+    ) -> tuple[int, int, list[dict]]:
+        """Task to fetch a single batch. Returns (batch_num, batch_end, logs)."""
+        w3 = self._get_web3(chain_name)
+        logs = self._fetch_logs_batch(
+            w3, contract_address, event_topics, batch_start, batch_end
+        )
+        return (batch_num, batch_end, logs)
 
     def fetch_events_for_contract(
         self,
@@ -273,10 +613,13 @@ class EventFetcher:
         event_names: list[str],
         from_block: int,
         to_block: int,
-    ) -> list[dict]:
-        """Fetch all specified events for a contract."""
-        w3 = self._get_web3(chain_name)
-        all_events = []
+    ) -> int:
+        """Fetch all specified events for a contract using parallel batch processing.
+
+        Returns the total number of events fetched. Events are saved incrementally to disk.
+        """
+        pending_events = []
+        total_events_saved = 0
 
         # Get event signatures
         event_topics = []
@@ -293,81 +636,112 @@ class EventFetcher:
 
         total_blocks = to_block - from_block + 1
         num_batches = (total_blocks + self.batch_size - 1) // self.batch_size
-        print(f"  Fetching {len(event_topics)} event types")
+        print(
+            f"  Fetching {len(event_topics)} event types ({self.parallel_batches} parallel, save every {self.save_interval})"
+        )
         print(
             f"  Block range: {from_block:,} → {to_block:,} ({total_blocks:,} blocks, {num_batches} batches)"
         )
 
-        # Fetch in batches
-        current_block = from_block
-        total_events = 0
-        batch_count = 0
-        start_time = time.time()
+        # Prepare output file
+        year_month = f"{self.year}_{self.month:02d}"
+        filename = f"{chain_name}_{protocol_name}_{year_month}.csv"
+        filepath = self.raw_folder / filename
+        fieldnames = None
+        header_written = False
 
+        # Build list of all batches
+        batches = []
+        current_block = from_block
+        batch_num = 0
         while current_block <= to_block:
             batch_end = min(current_block + self.batch_size - 1, to_block)
-            batch_count += 1
-
-            print(
-                f"    Fetching batch {batch_count}/{num_batches}: blocks {current_block:,} - {batch_end:,}...",
-                end="\r",
-            )
-
-            logs = self._fetch_logs_batch(
-                w3, contract_address, event_topics, current_block, batch_end
-            )
-
-            for log in logs:
-                topic0 = (
-                    log["topics"][0].hex()
-                    if isinstance(log["topics"][0], bytes)
-                    else log["topics"][0]
-                )
-                # Ensure 0x prefix for matching
-                if not topic0.startswith("0x"):
-                    topic0 = "0x" + topic0
-                event_name = event_map.get(topic0.lower(), "Unknown")
-
-                # Decode event data
-                decoded = decode_log_data(log, event_name)
-
-                event_record = {
-                    "chain_name": chain_name,
-                    "protocol": protocol_name,
-                    "contract_address": contract_address,
-                    "event_name": event_name,
-                    "block_number": log["blockNumber"],
-                    "transaction_hash": (
-                        log["transactionHash"].hex()
-                        if isinstance(log["transactionHash"], bytes)
-                        else log["transactionHash"]
-                    ),
-                    "log_index": log["logIndex"],
-                    "tx_index": log.get("transactionIndex", 0),
-                    **decoded,
-                }
-                all_events.append(event_record)
-
-            total_events += len(logs)
-            progress = (batch_end - from_block) / max(1, (to_block - from_block)) * 100
-            elapsed = time.time() - start_time
-            blocks_done = batch_end - from_block + 1
-            blocks_per_sec = blocks_done / max(1, elapsed)
-            eta_seconds = (to_block - batch_end) / max(1, blocks_per_sec)
-
-            print(
-                f"    Batch {batch_count}/{num_batches} ({progress:.1f}%) | "
-                f"{total_events:,} events | {blocks_per_sec:.0f} blk/s | ETA: {eta_seconds:.0f}s"
-                + " "
-                * 10,
-                end="\r",
-            )
-
+            batches.append((batch_num, current_block, batch_end))
+            batch_num += 1
             current_block = batch_end + 1
 
+        # Process batches in chunks to limit memory usage
+        start_time = time.time()
+        completed_batches = 0
+        total_events = 0
+        chunk_size = self.save_interval  # Process this many batches at a time
+
+        # Process in chunks
+        for chunk_start in range(0, len(batches), chunk_size):
+            chunk_end = min(chunk_start + chunk_size, len(batches))
+            chunk_batches = batches[chunk_start:chunk_end]
+
+            with ThreadPoolExecutor(max_workers=self.parallel_batches) as executor:
+                # Submit only this chunk of batch tasks
+                futures = {
+                    executor.submit(
+                        self._fetch_batch_task,
+                        chain_name,
+                        contract_address,
+                        event_topics,
+                        batch_start,
+                        batch_end,
+                        batch_num,
+                    ): batch_num
+                    for batch_num, batch_start, batch_end in chunk_batches
+                }
+
+                # Process results as they complete
+                for future in as_completed(futures):
+                    try:
+                        batch_num, batch_end, logs = future.result()
+                        completed_batches += 1
+
+                        # Process logs into events
+                        events = self._process_logs(
+                            logs, chain_name, protocol_name, contract_address, event_map
+                        )
+                        pending_events.extend(events)
+                        total_events += len(logs)
+
+                        # Update progress
+                        progress = completed_batches / num_batches * 100
+                        elapsed = time.time() - start_time
+                        batches_per_sec = completed_batches / max(1, elapsed)
+                        eta_seconds = (num_batches - completed_batches) / max(
+                            1, batches_per_sec
+                        )
+
+                        print(
+                            f"    Batch {completed_batches}/{num_batches} ({progress:.1f}%) | "
+                            f"{total_events:,} events | {batches_per_sec:.1f} batch/s | ETA: {eta_seconds:.0f}s"
+                            + " "
+                            * 10,
+                            end="\r",
+                        )
+                    except Exception as e:
+                        print(f"\n    Error in batch {futures[future]}: {e}")
+
+                # Clear futures dict to free memory
+                del futures
+
+            # Save after each chunk and free memory
+            if pending_events:
+                pending_events.sort(
+                    key=lambda x: (x["block_number"], x.get("log_index", 0))
+                )
+                if fieldnames is None:
+                    fieldnames = self._get_csv_fieldnames(pending_events)
+                self._append_events_to_csv(
+                    filepath,
+                    pending_events,
+                    fieldnames,
+                    write_header=not header_written,
+                )
+                header_written = True
+                total_events_saved += len(pending_events)
+                del pending_events
+                gc.collect()
+                pending_events = []
+
         elapsed = time.time() - start_time
-        print(f"\n  ✓ Completed: {total_events:,} events in {elapsed:.1f}s")
-        return all_events
+        print(f"\n  ✓ Completed: {total_events_saved:,} events in {elapsed:.1f}s")
+        return total_events_saved
 
     def _get_existing_files(self, chain_name: str) -> set[str]:
         """Get set of protocol names that already have files for current year/month."""
@@ -385,6 +759,95 @@ class EventFetcher:
                 existing_protocols.add(protocol)
 
         return existing_protocols
+
+    def _get_csv_fieldnames(self, events: list[dict]) -> list[str]:
+        """Get ordered fieldnames for CSV output."""
+        priority_fields = [
+            "chain_name",
+            "protocol",
+            "contract_address",
+            "event_name",
+            "block_number",
+            "transaction_hash",
+            "log_index",
+            "tx_index",
+            "from",
+            "to",
+            "amount",
+            "reserve",
+            "user",
+            "on_behalf_of",
+            "collateral_asset",
+            "debt_asset",
+        ]
+        all_fields = set()
+        for event in events:
+            all_fields.update(event.keys())
+        fieldnames = [f for f in priority_fields if f in all_fields]
+        fieldnames += sorted([f for f in all_fields if f not in priority_fields])
+        return fieldnames
+
+    def _append_events_to_csv(
+        self,
+        filepath: Path,
+        events: list[dict],
+        fieldnames: list[str],
+        write_header: bool = False,
+    ):
+        """Append events to CSV file."""
+        mode = "w" if write_header else "a"
+        with open(filepath, mode, newline="") as f:
+            writer = csv.DictWriter(f, fieldnames=fieldnames, extrasaction="ignore")
+            if write_header:
+                writer.writeheader()
+            writer.writerows(events)
+
+    def _save_contract_events(
+        self, chain_name: str, protocol_name: str, events: list[dict]
+    ):
+        """Save events for a single contract to CSV immediately."""
+        if not events:
+            print(f"    No events to save for {protocol_name}")
+            return
+
+        year_month = f"{self.year}_{self.month:02d}"
+        filename = f"{chain_name}_{protocol_name}_{year_month}.csv"
+        filepath = self.raw_folder / filename
+
+        # Define field order
+        priority_fields = [
+            "chain_name",
+            "protocol",
+            "contract_address",
+            "event_name",
+            "block_number",
+            "transaction_hash",
+            "log_index",
+            "tx_index",
+            "from",
+            "to",
+            "amount",
+            "reserve",
+            "user",
+            "on_behalf_of",
+            "collateral_asset",
+            "debt_asset",
+        ]
+
+        # Get all unique fields
+        all_fields = set()
+        for event in events:
+            all_fields.update(event.keys())
+
+        fieldnames = [f for f in priority_fields if f in all_fields]
+        fieldnames += sorted([f for f in all_fields if f not in priority_fields])
+
+        with open(filepath, "w", newline="") as f:
+            writer = csv.DictWriter(f, fieldnames=fieldnames, extrasaction="ignore")
+            writer.writeheader()
+            writer.writerows(events)
+
+        print(f"    ✓ Saved {filename}: {len(events)} events")
 
     def fetch_all_events(
         self, chains_filter: list[str] | None = None, contract_filter: str | None = None
@@ -466,7 +929,7 @@ class EventFetcher:
                 print(f"  Contract: {contract_address}")
                 print(f"  Events: {', '.join(event_names)}")
 
-                events = self.fetch_events_for_contract(
+                event_count = self.fetch_events_for_contract(
                     chain_name,
                     protocol_name,
                     contract_address,
@@ -476,63 +939,10 @@ class EventFetcher:
                 )
 
                 key = f"{chain_name}_{protocol_name}"
-                all_events[key] = events
-
-        return all_events
-
-    def save_to_csv(self, events: dict[str, list[dict]]):
-        """Save fetched events to CSV files."""
-        print()
-        print("═" * 79)
-        print("Saving to CSV")
-        print("═" * 79)
-
-        year_month = f"{self.year}_{self.month:02d}"
-
-        # Define field order
-        priority_fields = [
-            "chain_name",
-            "protocol",
-            "contract_address",
-            "event_name",
-            "block_number",
-            "transaction_hash",
-            "log_index",
-            "tx_index",
-            "from",
-            "to",
-            "amount",
-            "reserve",
-            "user",
-            "on_behalf_of",
-            "collateral_asset",
-            "debt_asset",
-        ]
-
-        for key, event_list in events.items():
-            if not event_list:
-                print(f"  Skipping {key}: no events")
-                continue
-
-            filename = f"{key}_{year_month}.csv"
-            filepath = self.raw_folder / filename
-
-            # Get all unique fields
-            all_fields = set()
-            for event in event_list:
-                all_fields.update(event.keys())
-
-            fieldnames = [f for f in priority_fields if f in all_fields]
-            fieldnames += sorted([f for f in all_fields if f not in priority_fields])
-
-            with open(filepath, "w", newline="") as f:
-                writer = csv.DictWriter(f, fieldnames=fieldnames, extrasaction="ignore")
-                writer.writeheader()
-                writer.writerows(event_list)
-
-            print(f"  ✓ {filename}: {len(event_list)} events")
+                all_events[key] = event_count
 
         print(f"\nOutput folder: {self.raw_folder.absolute()}")
+        return all_events
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -600,8 +1010,7 @@ def main():
 
     # Run fetcher
     fetcher = EventFetcher(config)
-    events = fetcher.fetch_all_events(chains_filter, contract_filter)
-    fetcher.save_to_csv(events)
+    fetcher.fetch_all_events(chains_filter, contract_filter)
 
     print("\n✓ Done!")
     return 0

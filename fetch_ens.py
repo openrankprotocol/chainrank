@@ -10,7 +10,7 @@ Fetches NameRegistered events from:
 
 Usage:
     python fetch_ens.py --config config.toml
-    python fetch_ens.py --config config.toml --years 4
+    python fetch_ens.py --config config.toml --year 2025
 
 Environment Variables (in .env file):
     RPC_ETHEREUM=https://eth-mainnet.g.alchemy.com/v2/YOUR_API_KEY
@@ -20,6 +20,7 @@ import argparse
 import csv
 import os
 import time
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
@@ -33,10 +34,16 @@ load_dotenv()
 
 # ENS Contract Addresses
 ENS_CONTRACTS = {
-    # ETH Registrar Controller (current)
-    "eth_registrar_controller": "0x253553366Da8546fC250F225fe3d25d0C782303b",
-    # Old ETH Registrar Controller
-    "eth_registrar_controller_old": "0x283Af0B28c62C092C9727F1Ee09c02CA627EB7F5",
+    # ETH Registrar Controller (current) - deployed January 2023
+    "eth_registrar_controller": {
+        "address": "0x253553366Da8546fC250F225fe3d25d0C782303b",
+        "deployed_year": 2023,
+    },
+    # Old ETH Registrar Controller - deployed May 2019
+    "eth_registrar_controller_old": {
+        "address": "0x283Af0B28c62C092C9727F1Ee09c02CA627EB7F5",
+        "deployed_year": 2019,
+    },
 }
 
 # ENS Event Signatures
@@ -109,8 +116,8 @@ class ENSEventFetcher:
         self.max_retries = self.indexer_config.get("max_retries", 3)
         self.retry_delay = self.indexer_config.get("retry_delay_seconds", 1)
         self.rate_limit = self.indexer_config.get("rate_limit_per_second", 10)
+        self.parallel_batches = self.indexer_config.get("parallel_batches", 10)
 
-        self.w3 = Web3(Web3.HTTPProvider(get_rpc_endpoint("ethereum")))
         self._last_request_time = 0
 
     def _rate_limit_wait(self):
@@ -122,8 +129,13 @@ class ENSEventFetcher:
             time.sleep(min_interval - elapsed)
         self._last_request_time = time.time()
 
+    def _get_web3(self) -> Web3:
+        """Get a new Web3 instance for thread-safe access."""
+        return Web3(Web3.HTTPProvider(get_rpc_endpoint("ethereum")))
+
     def _fetch_logs_batch(
         self,
+        w3: Web3,
         contract_address: str,
         topics: list[str],
         from_block: int,
@@ -132,8 +144,7 @@ class ENSEventFetcher:
         """Fetch logs for a batch of blocks with retry logic."""
         for attempt in range(self.max_retries):
             try:
-                self._rate_limit_wait()
-                logs = self.w3.eth.get_logs(
+                logs = w3.eth.get_logs(
                     {
                         "address": Web3.to_checksum_address(contract_address),
                         "topics": [topics],
@@ -150,6 +161,56 @@ class ENSEventFetcher:
                     print(f"  Failed after {self.max_retries} attempts: {e}")
                     return []
         return []
+
+    def _fetch_batch_task(
+        self,
+        contract_address: str,
+        event_topics: list[str],
+        batch_start: int,
+        batch_end: int,
+        batch_num: int,
+    ) -> tuple[int, int, list[dict]]:
+        """Task to fetch a single batch. Returns (batch_num, batch_end, logs)."""
+        w3 = self._get_web3()
+        logs = self._fetch_logs_batch(
+            w3, contract_address, event_topics, batch_start, batch_end
+        )
+        return (batch_num, batch_end, logs)
+
+    def _process_logs(self, logs: list[dict], contract_name: str) -> list[dict]:
+        """Process logs and extract ENS registration events."""
+        events = []
+        for log in logs:
+            topic0 = (
+                log["topics"][0].hex()
+                if isinstance(log["topics"][0], bytes)
+                else log["topics"][0]
+            )
+            if not topic0.startswith("0x"):
+                topic0 = "0x" + topic0
+
+            # Extract owner address from topic (indexed parameter)
+            owner = None
+            if len(log["topics"]) >= 3:
+                owner = self._extract_address(log["topics"][2])
+
+            # Decode name from data
+            name = self._decode_ens_name(log["data"])
+
+            if owner and name:
+                event_record = {
+                    "block_number": log["blockNumber"],
+                    "transaction_hash": (
+                        log["transactionHash"].hex()
+                        if isinstance(log["transactionHash"], bytes)
+                        else log["transactionHash"]
+                    ),
+                    "owner": owner,
+                    "name": f"{name}.eth",
+                    "contract": contract_name,
+                }
+                events.append(event_record)
+        return events
 
     def _decode_ens_name(self, data: bytes) -> str | None:
         """Decode ENS name from event data."""
@@ -185,7 +246,7 @@ class ENSEventFetcher:
             return "0x" + topic.hex()[-40:]
         return "0x" + topic[-40:]
 
-    def fetch_ens_events(self, from_block: int, to_block: int) -> list[dict]:
+    def fetch_ens_events(self, from_block: int, to_block: int, year: int) -> list[dict]:
         """Fetch ENS registration events."""
         all_events = []
 
@@ -195,13 +256,15 @@ class ENSEventFetcher:
             ENS_EVENT_SIGNATURES["NameRegisteredOld"],
         ]
 
-        contracts = [
-            ("eth_registrar_controller", ENS_CONTRACTS["eth_registrar_controller"]),
-            (
-                "eth_registrar_controller_old",
-                ENS_CONTRACTS["eth_registrar_controller_old"],
-            ),
-        ]
+        # Filter contracts based on deployment year
+        contracts = []
+        for name, info in ENS_CONTRACTS.items():
+            if year >= info["deployed_year"]:
+                contracts.append((name, info["address"]))
+
+        if not contracts:
+            print(f"  No contracts deployed for year {year}")
+            return all_events
 
         for contract_name, contract_address in contracts:
             print(f"\n  Contract: {contract_name}")
@@ -212,77 +275,73 @@ class ENSEventFetcher:
             print(
                 f"  Block range: {from_block:,} → {to_block:,} ({total_blocks:,} blocks, {num_batches} batches)"
             )
+            print(f"  Parallel batches: {self.parallel_batches}")
 
+            # Build list of all batches
+            batches = []
             current_block = from_block
-            total_events = 0
-            batch_count = 0
-            start_time = time.time()
-
+            batch_num = 0
             while current_block <= to_block:
                 batch_end = min(current_block + self.batch_size - 1, to_block)
-                batch_count += 1
-
-                print(
-                    f"    Fetching batch {batch_count}/{num_batches}: blocks {current_block:,} - {batch_end:,}...",
-                    end="\r",
-                )
-
-                logs = self._fetch_logs_batch(
-                    contract_address, event_topics, current_block, batch_end
-                )
-
-                for log in logs:
-                    topic0 = (
-                        log["topics"][0].hex()
-                        if isinstance(log["topics"][0], bytes)
-                        else log["topics"][0]
-                    )
-                    if not topic0.startswith("0x"):
-                        topic0 = "0x" + topic0
-
-                    # Extract owner address from topic (indexed parameter)
-                    owner = None
-                    if len(log["topics"]) >= 3:
-                        owner = self._extract_address(log["topics"][2])
-
-                    # Decode name from data
-                    name = self._decode_ens_name(log["data"])
-
-                    if owner and name:
-                        event_record = {
-                            "block_number": log["blockNumber"],
-                            "transaction_hash": (
-                                log["transactionHash"].hex()
-                                if isinstance(log["transactionHash"], bytes)
-                                else log["transactionHash"]
-                            ),
-                            "owner": owner,
-                            "name": f"{name}.eth",
-                            "contract": contract_name,
-                        }
-                        all_events.append(event_record)
-
-                total_events += len(logs)
-                progress = (
-                    (batch_end - from_block) / max(1, (to_block - from_block)) * 100
-                )
-                elapsed = time.time() - start_time
-                blocks_done = batch_end - from_block + 1
-                blocks_per_sec = blocks_done / max(1, elapsed)
-                eta_seconds = (to_block - batch_end) / max(1, blocks_per_sec)
-
-                print(
-                    f"    Batch {batch_count}/{num_batches} ({progress:.1f}%) | "
-                    f"{len(all_events):,} names | {blocks_per_sec:.0f} blk/s | ETA: {eta_seconds:.0f}s"
-                    + " "
-                    * 10,
-                    end="\r",
-                )
-
+                batches.append((batch_num, current_block, batch_end))
+                batch_num += 1
                 current_block = batch_end + 1
 
+            # Process batches in parallel
+            start_time = time.time()
+            completed_batches = 0
+            total_events = 0
+            contract_events = []
+
+            with ThreadPoolExecutor(max_workers=self.parallel_batches) as executor:
+                # Submit all batch tasks
+                futures = {
+                    executor.submit(
+                        self._fetch_batch_task,
+                        contract_address,
+                        event_topics,
+                        batch_start,
+                        batch_end,
+                        batch_num,
+                    ): batch_num
+                    for batch_num, batch_start, batch_end in batches
+                }
+
+                # Process results as they complete
+                for future in as_completed(futures):
+                    try:
+                        batch_num, batch_end, logs = future.result()
+                        completed_batches += 1
+
+                        # Process logs into events
+                        events = self._process_logs(logs, contract_name)
+                        contract_events.extend(events)
+                        total_events += len(logs)
+
+                        # Update progress
+                        progress = completed_batches / num_batches * 100
+                        elapsed = time.time() - start_time
+                        batches_per_sec = completed_batches / max(1, elapsed)
+                        eta_seconds = (num_batches - completed_batches) / max(
+                            1, batches_per_sec
+                        )
+
+                        print(
+                            f"    Batch {completed_batches}/{num_batches} ({progress:.1f}%) | "
+                            f"{len(contract_events):,} names | {batches_per_sec:.1f} batch/s | ETA: {eta_seconds:.0f}s"
+                            + " "
+                            * 10,
+                            end="\r",
+                        )
+                    except Exception as e:
+                        print(f"\n    Error in batch {futures[future]}: {e}")
+
+            # Sort events by block number to maintain order
+            contract_events.sort(key=lambda x: x["block_number"])
+            all_events.extend(contract_events)
+
             elapsed = time.time() - start_time
-            print(f"\n  ✓ Completed: {len(all_events):,} events in {elapsed:.1f}s")
+            print(f"\n  ✓ Completed: {len(contract_events):,} events in {elapsed:.1f}s")
 
         return all_events
 
@@ -317,10 +376,10 @@ def main():
         "--config", type=str, default="config.toml", help="Path to config.toml file"
     )
     parser.add_argument(
-        "--months",
+        "--year",
         type=int,
-        default=6,
-        help="Number of months back to fetch (default: 6)",
+        default=None,
+        help="Year to fetch data for (e.g., 2025). Defaults to current year.",
     )
 
     args = parser.parse_args()
@@ -346,15 +405,24 @@ def main():
     print("Calculating Block Range")
     print("─" * 79)
 
-    end_time = datetime.now(timezone.utc)
-    start_time = end_time - timedelta(days=args.months * 30)
+    year = args.year if args.year else datetime.now(timezone.utc).year
+    start_time = datetime(year, 1, 1, 0, 0, 0, tzinfo=timezone.utc)
+    end_time = datetime(year, 12, 31, 23, 59, 59, tzinfo=timezone.utc)
+
+    # If end_time is in the future, use current time
+    now = datetime.now(timezone.utc)
+    if end_time > now:
+        end_time = now
+
     start_timestamp = int(start_time.timestamp())
+    end_timestamp = int(end_time.timestamp())
 
+    print(f"  Year: {year}")
     print(f"  Time window: {start_time.isoformat()} to {end_time.isoformat()}")
-    print(f"  Months back: {args.months}")
 
-    to_block = fetcher.w3.eth.block_number
-    from_block = get_block_by_timestamp(fetcher.w3, start_timestamp)
+    w3 = fetcher._get_web3()
+    from_block = get_block_by_timestamp(w3, start_timestamp)
+    to_block = get_block_by_timestamp(w3, end_timestamp)
 
     print(f"  Block range: {from_block:,} to {to_block:,}")
 
@@ -364,7 +432,7 @@ def main():
     print("Fetching ENS Events")
     print("─" * 79)
 
-    events = fetcher.fetch_ens_events(from_block, to_block)
+    events = fetcher.fetch_ens_events(from_block, to_block, year)
 
     # Save events
     print()
@@ -372,7 +440,7 @@ def main():
     print("Saving Results")
     print("─" * 79)
 
-    mapping_path = fetcher.raw_folder / "ens_names.csv"
+    mapping_path = fetcher.raw_folder / f"ens_names_{year}.csv"
 
     # Build and save mapping
     mapping = fetcher.build_address_mapping(events)

@@ -16,9 +16,9 @@ Usage:
 
 import argparse
 import csv
+import json
 import math
 from collections import defaultdict
-from datetime import datetime, timezone
 from pathlib import Path
 
 import toml
@@ -55,6 +55,17 @@ def find_raw_files_by_chain_year_month(
     return sorted(csv_files)
 
 
+def find_all_raw_files_by_chain(raw_folder: Path, chain: str) -> list[Path]:
+    """Find all raw event CSV files for a specific chain (excluding ens_names and cex_addresses)."""
+    pattern = f"{chain}_*.csv"
+    csv_files = [
+        f
+        for f in raw_folder.glob(pattern)
+        if not f.name.startswith("ens_names") and not f.name.startswith("cex_")
+    ]
+    return sorted(csv_files)
+
+
 def find_latest_raw_file(raw_folder: Path, prefix: str = "ethereum_") -> Path | None:
     """Find the most recent raw events CSV file with given prefix."""
     csv_files = list(raw_folder.glob(f"{prefix}*.csv"))
@@ -65,24 +76,44 @@ def find_latest_raw_file(raw_folder: Path, prefix: str = "ethereum_") -> Path | 
     return csv_files[0]
 
 
-def find_ens_file(raw_folder: Path) -> Path | None:
-    """Find the ENS names CSV file."""
-    ens_path = raw_folder / "ens_names.csv"
-    if ens_path.exists():
-        return ens_path
-    return None
+def find_ens_files(raw_folder: Path) -> list[Path]:
+    """Find all ENS names CSV files (ens_names_*.csv)."""
+    ens_files = sorted(raw_folder.glob("ens_names_*.csv"))
+    return ens_files
 
 
-def load_ens_names(ens_path: Path) -> set[str]:
-    """Load ENS names mapping and return set of addresses with ENS."""
+def load_ens_names(ens_paths: list[Path]) -> set[str]:
+    """Load ENS names mapping from multiple files and return set of addresses with ENS."""
     ens_addresses = set()
-    with open(ens_path, "r") as f:
+    for ens_path in ens_paths:
+        with open(ens_path, "r") as f:
+            reader = csv.DictReader(f)
+            for row in reader:
+                address = row.get("address", "").lower()
+                if address:
+                    ens_addresses.add(address)
+    return ens_addresses
+
+
+def load_fc_addresses(raw_folder: Path) -> set[str]:
+    """Load Farcaster verified addresses from fc_addresses.csv."""
+    fc_path = raw_folder / "fc_addresses.csv"
+    fc_addresses = set()
+    if not fc_path.exists():
+        return fc_addresses
+    with open(fc_path, "r") as f:
         reader = csv.DictReader(f)
         for row in reader:
-            address = row.get("address", "").lower()
-            if address:
-                ens_addresses.add(address)
-    return ens_addresses
+            addresses_json = row.get("verified_addresses", "[]")
+            try:
+                addresses = json.loads(addresses_json)
+                for addr in addresses:
+                    # Only include 20-byte Ethereum addresses (42 chars with 0x)
+                    if addr and len(addr) == 42 and addr.startswith("0x"):
+                        fc_addresses.add(addr.lower())
+            except json.JSONDecodeError:
+                pass
+    return fc_addresses
 
 
 def safe_log(amount: float) -> float:
@@ -95,7 +126,12 @@ def safe_log(amount: float) -> float:
 class TrustCalculator:
     """Calculates local trust scores from raw events."""
 
-    def __init__(self, config: dict, ens_addresses: set[str] | None = None):
+    def __init__(
+        self,
+        config: dict,
+        ens_addresses: set[str] | None = None,
+        fc_addresses: set[str] | None = None,
+    ):
         self.config = config
         self.trust_weights = config.get("trust_weights", {})
         self.trust_output = config.get("trust_output", {})
@@ -108,8 +144,14 @@ class TrustCalculator:
         # ENS verification multiplier (default 2.0)
         self.ens_multiplier = self.trust_output.get("ens_verification_multiplier", 2.0)
 
+        # Farcaster verification multiplier (default 2.0)
+        self.fc_multiplier = self.trust_output.get("fc_verification_multiplier", 2.0)
+
         # ENS verified addresses (receive multiplied incoming trust)
         self.ens_addresses = ens_addresses or set()
+
+        # Farcaster verified addresses (receive multiplied incoming trust)
+        self.fc_addresses = fc_addresses or set()
 
         # Trust scores: {(from_address, to_address): score}
         self.trust_edges = defaultdict(float)
@@ -242,6 +284,465 @@ class TrustCalculator:
                     )
                 )
 
+        # Compound V2 Events
+        elif event_name == "Mint":
+            # User deposits underlying asset, receives cTokens
+            minter = row.get("minter", "").lower()
+            mint_amount = 0
+            if "mint_amount" in row and row["mint_amount"]:
+                try:
+                    mint_amount = int(row["mint_amount"])
+                except (ValueError, TypeError):
+                    mint_amount = 0
+            amount_normalized = mint_amount / (10**decimals)
+            if minter:
+                flows.append(
+                    (
+                        minter,
+                        contract_address,
+                        amount_normalized,
+                        event_name,
+                        protocol,
+                        False,
+                    )
+                )
+
+        elif event_name == "Redeem":
+            # User redeems cTokens for underlying asset
+            redeemer = row.get("redeemer", "").lower()
+            redeem_amount = 0
+            if "redeem_amount" in row and row["redeem_amount"]:
+                try:
+                    redeem_amount = int(row["redeem_amount"])
+                except (ValueError, TypeError):
+                    redeem_amount = 0
+            amount_normalized = redeem_amount / (10**decimals)
+            if redeemer:
+                flows.append(
+                    (
+                        contract_address,
+                        redeemer,
+                        amount_normalized,
+                        event_name,
+                        protocol,
+                        False,
+                    )
+                )
+
+        elif event_name == "CompoundBorrow":
+            # User borrows from protocol (Compound-style Borrow)
+            borrower = row.get("borrower", "").lower()
+            borrow_amount = 0
+            if "borrow_amount" in row and row["borrow_amount"]:
+                try:
+                    borrow_amount = int(row["borrow_amount"])
+                except (ValueError, TypeError):
+                    borrow_amount = 0
+            amount_normalized = borrow_amount / (10**decimals)
+            if borrower:
+                flows.append(
+                    (
+                        contract_address,
+                        borrower,
+                        amount_normalized,
+                        "CompoundBorrow",
+                        protocol,
+                        False,
+                    )
+                )
+
+        elif event_name == "RepayBorrow":
+            # User repays borrowed assets
+            payer = row.get("payer", "").lower()
+            borrower = row.get("borrower", "").lower()
+            repay_amount = 0
+            if "repay_amount" in row and row["repay_amount"]:
+                try:
+                    repay_amount = int(row["repay_amount"])
+                except (ValueError, TypeError):
+                    repay_amount = 0
+            amount_normalized = repay_amount / (10**decimals)
+            # Credit goes to the payer (who may be repaying for someone else)
+            if payer:
+                flows.append(
+                    (
+                        payer,
+                        contract_address,
+                        amount_normalized,
+                        event_name,
+                        protocol,
+                        False,
+                    )
+                )
+
+        elif event_name == "LiquidateBorrow":
+            # Liquidator repays debt and seizes collateral
+            liquidator = row.get("liquidator", "").lower()
+            borrower = row.get("borrower", "").lower()
+            repay_amount = 0
+            if "repay_amount" in row and row["repay_amount"]:
+                try:
+                    repay_amount = int(row["repay_amount"])
+                except (ValueError, TypeError):
+                    repay_amount = 0
+            amount_normalized = repay_amount / (10**decimals)
+            # Liquidator gets positive trust for maintaining protocol health
+            if liquidator:
+                flows.append(
+                    (
+                        liquidator,
+                        contract_address,
+                        amount_normalized,
+                        "LiquidateBorrow_liquidator",
+                        protocol,
+                        False,
+                    )
+                )
+            # Borrower gets negative trust for being liquidated
+            if borrower:
+                flows.append(
+                    (
+                        contract_address,
+                        borrower,
+                        amount_normalized,
+                        "LiquidateBorrow_liquidated",
+                        protocol,
+                        True,
+                    )
+                )
+
+        elif event_name == "DistributedSupplierComp":
+            # COMP rewards distributed to supplier
+            supplier = row.get("supplier", "").lower()
+            comp_delta = 0
+            if "comp_delta" in row and row["comp_delta"]:
+                try:
+                    comp_delta = int(row["comp_delta"])
+                except (ValueError, TypeError):
+                    comp_delta = 0
+            # COMP has 18 decimals
+            amount_normalized = comp_delta / 1e18
+            if supplier:
+                flows.append(
+                    (
+                        contract_address,
+                        supplier,
+                        amount_normalized,
+                        event_name,
+                        protocol,
+                        False,
+                    )
+                )
+
+        elif event_name == "DistributedBorrowerComp":
+            # COMP rewards distributed to borrower
+            borrower = row.get("borrower", "").lower()
+            comp_delta = 0
+            if "comp_delta" in row and row["comp_delta"]:
+                try:
+                    comp_delta = int(row["comp_delta"])
+                except (ValueError, TypeError):
+                    comp_delta = 0
+            # COMP has 18 decimals
+            amount_normalized = comp_delta / 1e18
+            if borrower:
+                flows.append(
+                    (
+                        contract_address,
+                        borrower,
+                        amount_normalized,
+                        event_name,
+                        protocol,
+                        False,
+                    )
+                )
+
+        # Morpho Blue Events
+        elif event_name == "MorphoSupply":
+            # User supplies assets to Morpho Blue
+            on_behalf_of = row.get("on_behalf_of", "").lower()
+            assets = 0
+            if "assets" in row and row["assets"]:
+                try:
+                    assets = int(row["assets"])
+                except (ValueError, TypeError):
+                    assets = 0
+            amount_normalized = assets / (10**decimals)
+            if on_behalf_of:
+                flows.append(
+                    (
+                        on_behalf_of,
+                        contract_address,
+                        amount_normalized,
+                        event_name,
+                        protocol,
+                        False,
+                    )
+                )
+
+        elif event_name == "MorphoWithdraw":
+            # User withdraws from Morpho Blue
+            receiver = row.get("receiver", "").lower()
+            assets = 0
+            if "assets" in row and row["assets"]:
+                try:
+                    assets = int(row["assets"])
+                except (ValueError, TypeError):
+                    assets = 0
+            amount_normalized = assets / (10**decimals)
+            if receiver:
+                flows.append(
+                    (
+                        contract_address,
+                        receiver,
+                        amount_normalized,
+                        event_name,
+                        protocol,
+                        False,
+                    )
+                )
+
+        elif event_name == "MorphoBorrow":
+            # User borrows from Morpho Blue
+            receiver = row.get("receiver", "").lower()
+            assets = 0
+            if "assets" in row and row["assets"]:
+                try:
+                    assets = int(row["assets"])
+                except (ValueError, TypeError):
+                    assets = 0
+            amount_normalized = assets / (10**decimals)
+            if receiver:
+                flows.append(
+                    (
+                        contract_address,
+                        receiver,
+                        amount_normalized,
+                        event_name,
+                        protocol,
+                        False,
+                    )
+                )
+
+        elif event_name == "MorphoRepay":
+            # User repays to Morpho Blue
+            caller = row.get("caller", "").lower()
+            assets = 0
+            if "assets" in row and row["assets"]:
+                try:
+                    assets = int(row["assets"])
+                except (ValueError, TypeError):
+                    assets = 0
+            amount_normalized = assets / (10**decimals)
+            if caller:
+                flows.append(
+                    (
+                        caller,
+                        contract_address,
+                        amount_normalized,
+                        event_name,
+                        protocol,
+                        False,
+                    )
+                )
+
+        elif event_name == "MorphoLiquidate":
+            # Morpho Blue liquidation
+            liquidator = row.get("liquidator", "").lower()
+            borrower = row.get("borrower", "").lower()
+            repaid_assets = 0
+            if "repaid_assets" in row and row["repaid_assets"]:
+                try:
+                    repaid_assets = int(row["repaid_assets"])
+                except (ValueError, TypeError):
+                    repaid_assets = 0
+            amount_normalized = repaid_assets / (10**decimals)
+            # Liquidator gets positive trust
+            if liquidator:
+                flows.append(
+                    (
+                        liquidator,
+                        contract_address,
+                        amount_normalized,
+                        "MorphoLiquidate_liquidator",
+                        protocol,
+                        False,
+                    )
+                )
+            # Borrower gets negative trust
+            if borrower:
+                flows.append(
+                    (
+                        contract_address,
+                        borrower,
+                        amount_normalized,
+                        "MorphoLiquidate_liquidated",
+                        protocol,
+                        True,
+                    )
+                )
+
+        # Fluid Liquidity Events
+        elif event_name == "FluidOperate":
+            # Fluid combined supply/borrow operation
+            user = row.get("user", "").lower()
+            supply_amount = 0
+            borrow_amount = 0
+            if "supply_amount" in row and row["supply_amount"]:
+                try:
+                    supply_amount = int(row["supply_amount"])
+                except (ValueError, TypeError):
+                    supply_amount = 0
+            if "borrow_amount" in row and row["borrow_amount"]:
+                try:
+                    borrow_amount = int(row["borrow_amount"])
+                except (ValueError, TypeError):
+                    borrow_amount = 0
+            # Positive supply_amount means deposit, negative means withdraw
+            # Positive borrow_amount means borrow, negative means repay
+            if user:
+                if supply_amount > 0:
+                    # User depositing
+                    amount_normalized = supply_amount / (10**decimals)
+                    flows.append(
+                        (
+                            user,
+                            contract_address,
+                            amount_normalized,
+                            "FluidOperate_supply",
+                            protocol,
+                            False,
+                        )
+                    )
+                elif supply_amount < 0:
+                    # User withdrawing
+                    amount_normalized = abs(supply_amount) / (10**decimals)
+                    flows.append(
+                        (
+                            contract_address,
+                            user,
+                            amount_normalized,
+                            "FluidOperate_withdraw",
+                            protocol,
+                            False,
+                        )
+                    )
+                if borrow_amount < 0:
+                    # User repaying (negative borrow = repay)
+                    amount_normalized = abs(borrow_amount) / (10**decimals)
+                    flows.append(
+                        (
+                            user,
+                            contract_address,
+                            amount_normalized,
+                            "FluidOperate_repay",
+                            protocol,
+                            False,
+                        )
+                    )
+                elif borrow_amount > 0:
+                    # User borrowing
+                    amount_normalized = borrow_amount / (10**decimals)
+                    flows.append(
+                        (
+                            contract_address,
+                            user,
+                            amount_normalized,
+                            "FluidOperate_borrow",
+                            protocol,
+                            False,
+                        )
+                    )
+
+        # DEX Aggregator Events
+        elif event_name == "OneInchSwapped":
+            # 1inch OrderFilled - maker is the user who filled the order
+            maker = row.get("maker", "").lower()
+            remaining_amount = 0
+            if "remaining_amount" in row and row["remaining_amount"]:
+                try:
+                    remaining_amount = int(row["remaining_amount"])
+                except (ValueError, TypeError):
+                    remaining_amount = 0
+            amount_normalized = remaining_amount / (10**decimals)
+            if maker:
+                flows.append(
+                    (
+                        maker,
+                        contract_address,
+                        amount_normalized,
+                        event_name,
+                        protocol,
+                        False,
+                    )
+                )
+
+        elif event_name == "ZeroExTransformedERC20":
+            # 0x swap - taker is the user
+            taker = row.get("taker", "").lower()
+            input_amount = 0
+            if "input_amount" in row and row["input_amount"]:
+                try:
+                    input_amount = int(row["input_amount"])
+                except (ValueError, TypeError):
+                    input_amount = 0
+            amount_normalized = input_amount / (10**decimals)
+            if taker:
+                flows.append(
+                    (
+                        taker,
+                        contract_address,
+                        amount_normalized,
+                        event_name,
+                        protocol,
+                        False,
+                    )
+                )
+
+        elif event_name == "ParaswapSwapped":
+            # Paraswap swap - initiator is the user
+            initiator = row.get("initiator", "").lower()
+            src_amount = 0
+            if "src_amount" in row and row["src_amount"]:
+                try:
+                    src_amount = int(row["src_amount"])
+                except (ValueError, TypeError):
+                    src_amount = 0
+            amount_normalized = src_amount / (10**decimals)
+            if initiator:
+                flows.append(
+                    (
+                        initiator,
+                        contract_address,
+                        amount_normalized,
+                        event_name,
+                        protocol,
+                        False,
+                    )
+                )
+
+        elif event_name == "CowTrade":
+            # CoW Protocol trade - owner is the user
+            owner = row.get("owner", "").lower()
+            sell_amount = 0
+            if "sell_amount" in row and row["sell_amount"]:
+                try:
+                    sell_amount = int(row["sell_amount"])
+                except (ValueError, TypeError):
+                    sell_amount = 0
+            amount_normalized = sell_amount / (10**decimals)
+            if owner:
+                flows.append(
+                    (
+                        owner,
+                        contract_address,
+                        amount_normalized,
+                        event_name,
+                        protocol,
+                        False,
+                    )
+                )
+
         elif event_name == "Transfer":
             # ERC-20 transfer
             from_addr = row.get("from", "").lower()
@@ -342,10 +843,13 @@ class TrustCalculator:
             # Calculate trust contribution
             trust_delta = log_amount * weight
 
-            # Apply ENS verification multiplier for incoming trust
+            # Apply verification multipliers for incoming trust (they stack)
             # If the recipient (to_addr) has an ENS name, they get multiplied incoming trust
             if to_addr in self.ens_addresses:
                 trust_delta *= self.ens_multiplier
+            # If the recipient has a Farcaster verified address, apply FC multiplier
+            if to_addr in self.fc_addresses:
+                trust_delta *= self.fc_multiplier
 
             # Add to edge trust (will floor to 0 later)
             edge_key = (from_addr, to_addr)
@@ -402,6 +906,8 @@ class TrustCalculator:
         print(f"  ENS addresses in dataset: {len(self.ens_addresses):,}")
         print(f"  ENS-verified recipients: {len(ens_recipients):,}")
         print(f"  ENS multiplier: {self.ens_multiplier}x")
+        print(f"  FC addresses in dataset: {len(self.fc_addresses):,}")
+        print(f"  FC multiplier: {self.fc_multiplier}x")
 
         if non_zero_edges > 0:
             avg_trust = total_trust / non_zero_edges
@@ -417,19 +923,7 @@ def main():
         "--input",
         type=str,
         default=None,
-        help="Path to input CSV file (default: all files for year/month from config)",
-    )
-    parser.add_argument(
-        "--year",
-        type=int,
-        default=None,
-        help="Year to process (default: from config)",
-    )
-    parser.add_argument(
-        "--month",
-        type=int,
-        default=None,
-        help="Month to process (default: from config)",
+        help="Path to input CSV file (default: all raw files for chain in raw folder)",
     )
     parser.add_argument(
         "--chain",
@@ -441,7 +935,7 @@ def main():
         "--ens",
         type=str,
         default=None,
-        help="Path to ENS names CSV file (default: latest ens_names_*.csv in raw folder)",
+        help="Path to ENS names CSV file (default: all ens_names_*.csv files in raw folder)",
     )
 
     args = parser.parse_args()
@@ -462,24 +956,29 @@ def main():
     raw_folder = Path(config.get("output", {}).get("raw_folder", "raw"))
 
     if args.ens:
-        ens_path = Path(args.ens)
+        ens_paths = [Path(args.ens)]
     else:
-        ens_path = find_ens_file(raw_folder)
+        ens_paths = find_ens_files(raw_folder)
 
-    ens_addresses = set()
-    if ens_path and ens_path.exists():
-        print(f"ENS file: {ens_path}")
-        ens_addresses = load_ens_names(ens_path)
+    if ens_paths:
+        print(f"ENS files: {len(ens_paths)} file(s)")
+        for p in ens_paths:
+            print(f"  - {p.name}")
+        ens_addresses = load_ens_names(ens_paths)
         print(f"Loaded {len(ens_addresses):,} ENS-verified addresses")
     else:
         print("No ENS file found - proceeding without ENS verification multiplier")
+        ens_addresses = set()
 
-    # Get year/month from args or config
-    year = args.year or config.get("year")
-    month = args.month or config.get("month")
+    # Load Farcaster addresses
+    fc_addresses = load_fc_addresses(raw_folder)
+    if fc_addresses:
+        print(f"Loaded {len(fc_addresses):,} Farcaster-verified addresses")
+    else:
+        print("No Farcaster addresses found")
 
     # Initialize calculator
-    calculator = TrustCalculator(config, ens_addresses)
+    calculator = TrustCalculator(config, ens_addresses, fc_addresses)
 
     # Get chain
     chain = args.chain.lower()
@@ -487,21 +986,15 @@ def main():
     # Find input files
     if args.input:
         input_paths = [Path(args.input)]
-    elif year and month:
-        input_paths = find_raw_files_by_chain_year_month(
-            calculator.raw_folder, chain, year, month
-        )
     else:
-        # Fallback to latest file
-        latest = find_latest_raw_file(calculator.raw_folder, prefix=f"{chain}_")
-        input_paths = [latest] if latest else []
+        # Use all raw files for the chain
+        input_paths = find_all_raw_files_by_chain(calculator.raw_folder, chain)
 
     if not input_paths:
         print(f"Error: No input files found")
         return 1
 
     print(f"Chain: {chain}")
-    print(f"Year: {year}, Month: {month}")
     print(f"Input files: {len(input_paths)}")
     for p in input_paths:
         print(f"  - {p.name}")

@@ -3,15 +3,11 @@
 
 # Time window for fetching events
 year = 2025
-month = 12
+month = 11
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # SEED CONTRACTS
 # ═══════════════════════════════════════════════════════════════════════════════
-
-# Aave V3 Pool contract
-[seed_contracts.aave]
-ethereum = "0x87870Bca3F3fD6335C3F4ce8392D69350B4fA4E2"
 
 # USDC Token contract
 [seed_contracts.usdc]
@@ -27,11 +23,60 @@ ethereum = "0x2260FAC5E5542a773Aa44fBCfeDf7C193bc2C599"
 
 # DAI Token contract
 [seed_contracts.dai]
-ethereum = "0x6B175474E89094C44Da98b954EesdeAC495271d0F"
+ethereum = "0x6B175474E89094C44Da98b954EedeAC495271d0F"
 
 # WETH Token contract
 [seed_contracts.weth]
 ethereum = "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2"
+
+# Aave V3 Pool contract
+[seed_contracts.aave]
+ethereum = "0x87870Bca3F3fD6335C3F4ce8392D69350B4fA4E2"
+
+# Compound V2 cTokens (main markets)
+[seed_contracts.compound_ceth]
+ethereum = "0x4Ddc2D193948926D02f9B1fE9e1daa0718270ED5"
+
+[seed_contracts.compound_cdai]
+ethereum = "0x5d3a536E4D6DbD6114cc1Ead35777bAB948E3643"
+
+[seed_contracts.compound_cusdc]
+ethereum = "0x39AA39c021dfbaE8faC545936693aC917d5E7563"
+
+[seed_contracts.compound_cusdt]
+ethereum = "0xf650C3d88D12dB855b8bf7D11Be6C55A4e07dCC9"
+
+[seed_contracts.compound_cwbtc]
+ethereum = "0xccF4429DB6322D5C611ee964527D42E5d685DD6a"
+
+# Compound Comptroller (for COMP distribution events)
+[seed_contracts.compound_comptroller]
+ethereum = "0x3d9819210A31b4961b30EF54bE2aeD79B9c9Cd3B"
+
+# Morpho Blue (Lending)
+[seed_contracts.morpho_blue]
+ethereum = "0xBBBBBbbBBb9cC5e90e3b3Af64bdAF62C37EEFFCb"
+
+# Spark Protocol (Lending - MakerDAO ecosystem, Aave V3 fork)
+[seed_contracts.spark]
+ethereum = "0xC13e21B648A5Ee794902342038FF3aDAB66BE987"
+
+# Fluid Liquidity (Lending + DEX)
+[seed_contracts.fluid]
+ethereum = "0x52Aa899454998Be5b000Ad077a46Bbe360F4e497"
+
+# DEX Aggregators
+[seed_contracts.oneinch]
+ethereum = "0x1111111254EEB25477B68fb85Ed929f73A960582"
+
+[seed_contracts.zeroex]
+ethereum = "0xDef1C0ded9bec7F1a1670819833240f027b25EfF"
+
+[seed_contracts.paraswap]
+ethereum = "0xDEF171Fe48CF0115B1d80b88dc8eAB59176FEe57"
+
+[seed_contracts.cowswap]
+ethereum = "0x9008D19f58AAbD9eD0D60971565AA8510560ab41"
 
 # Uniswap V3 Pools (top liquidity pools)
 # USDC/ETH 0.05%
@@ -65,6 +110,74 @@ aave = [
     "Borrow",
     "Repay",
     "LiquidationCall"
+]
+compound_ceth = [
+    "Mint",
+    "Redeem",
+    "CompoundBorrow",
+    "RepayBorrow",
+    "LiquidateBorrow"
+]
+compound_cdai = [
+    "Mint",
+    "Redeem",
+    "CompoundBorrow",
+    "RepayBorrow",
+    "LiquidateBorrow"
+]
+compound_cusdc = [
+    "Mint",
+    "Redeem",
+    "CompoundBorrow",
+    "RepayBorrow",
+    "LiquidateBorrow"
+]
+compound_cusdt = [
+    "Mint",
+    "Redeem",
+    "CompoundBorrow",
+    "RepayBorrow",
+    "LiquidateBorrow"
+]
+compound_cwbtc = [
+    "Mint",
+    "Redeem",
+    "CompoundBorrow",
+    "RepayBorrow",
+    "LiquidateBorrow"
+]
+compound_comptroller = [
+    "DistributedSupplierComp",
+    "DistributedBorrowerComp"
+]
+morpho_blue = [
+    "MorphoSupply",
+    "MorphoWithdraw",
+    "MorphoBorrow",
+    "MorphoRepay",
+    "MorphoLiquidate"
+]
+spark = [
+    "Supply",
+    "Withdraw",
+    "Borrow",
+    "Repay",
+    "LiquidationCall"
+]
+fluid = [
+    "FluidOperate"
+]
+oneinch = [
+    "OneInchSwapped"
+]
+zeroex = [
+    "ZeroExTransformedERC20"
+]
+paraswap = [
+    "ParaswapSwapped"
+]
+cowswap = [
+    "CowTrade"
 ]
 usdc = [
     "Transfer"
@@ -114,6 +227,8 @@ batch_size = 2000
 max_retries = 3
 retry_delay_seconds = 1
 rate_limit_per_second = 10
+parallel_batches = 10
+save_interval_batches = 10
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # TRUST CALCULATION WEIGHTS (per protocol)
@@ -132,6 +247,89 @@ Withdraw = 0.3                        # Normal behavior, reduces commitment
 
 # Negative trust signals (trust reducing)
 LiquidationCall_liquidated = -1.5     # Failed position management
+
+# Compound V2 trust weights (applied to all cToken markets)
+[trust_weights.compound_ceth]
+Mint = 1.0                            # Deposit ETH, receive cETH
+RepayBorrow = 1.5                     # Fulfilled debt obligation
+LiquidateBorrow_liquidator = 1.2      # Maintains protocol health
+CompoundBorrow = 0.4                  # Creates debt
+Redeem = 0.3                          # Withdraw funds
+LiquidateBorrow_liquidated = -1.5     # Failed position management
+
+[trust_weights.compound_cdai]
+Mint = 1.0
+RepayBorrow = 1.5
+LiquidateBorrow_liquidator = 1.2
+CompoundBorrow = 0.4
+Redeem = 0.3
+LiquidateBorrow_liquidated = -1.5
+
+[trust_weights.compound_cusdc]
+Mint = 1.0
+RepayBorrow = 1.5
+LiquidateBorrow_liquidator = 1.2
+CompoundBorrow = 0.4
+Redeem = 0.3
+LiquidateBorrow_liquidated = -1.5
+
+[trust_weights.compound_cusdt]
+Mint = 1.0
+RepayBorrow = 1.5
+LiquidateBorrow_liquidator = 1.2
+CompoundBorrow = 0.4
+Redeem = 0.3
+LiquidateBorrow_liquidated = -1.5
+
+[trust_weights.compound_cwbtc]
+Mint = 1.0
+RepayBorrow = 1.5
+LiquidateBorrow_liquidator = 1.2
+CompoundBorrow = 0.4
+Redeem = 0.3
+LiquidateBorrow_liquidated = -1.5
+
+[trust_weights.compound_comptroller]
+DistributedSupplierComp = 0.5         # COMP rewards for supplying
+DistributedBorrowerComp = 0.5         # COMP rewards for borrowing
+
+# Morpho Blue trust weights
+[trust_weights.morpho_blue]
+MorphoSupply = 1.0                    # Deposit collateral
+MorphoRepay = 1.5                     # Fulfilled debt obligation
+MorphoLiquidate_liquidator = 1.2      # Maintains protocol health
+MorphoBorrow = 0.4                    # Creates debt
+MorphoWithdraw = 0.3                  # Withdraw funds
+MorphoLiquidate_liquidated = -1.5     # Failed position management
+
+# Spark Protocol trust weights (same as Aave V3)
+[trust_weights.spark]
+Supply = 1.0                          # Deposit collateral
+Repay = 1.5                           # Fulfilled debt obligation
+LiquidationCall_liquidator = 1.2      # Maintains protocol health
+Borrow = 0.4                          # Creates debt
+Withdraw = 0.3                        # Withdraw funds
+LiquidationCall_liquidated = -1.5     # Failed position management
+
+# Fluid Liquidity trust weights
+[trust_weights.fluid]
+FluidOperate_supply = 1.0             # Deposit assets
+FluidOperate_withdraw = 0.3           # Withdraw assets
+FluidOperate_repay = 1.5              # Repay debt
+FluidOperate_borrow = 0.4             # Borrow assets
+
+# DEX Aggregator trust weights
+[trust_weights.oneinch]
+OneInchSwapped = 0.7                  # User swapped via 1inch
+
+[trust_weights.zeroex]
+ZeroExTransformedERC20 = 0.7          # User swapped via 0x
+
+[trust_weights.paraswap]
+ParaswapSwapped = 0.7                 # User swapped via Paraswap
+
+[trust_weights.cowswap]
+CowTrade = 0.7                        # User swapped via CoW Protocol
 
 [trust_weights.usdc]
 Transfer = 0.8                        # USDC transfer activity
@@ -166,3 +364,4 @@ UniswapV3Swap = 0.6                   # Swap on WETH/USDT pool
 [trust_output]
 trust_folder = "trust"
 ens_verification_multiplier = 2.0
+fc_verification_multiplier = 2.0

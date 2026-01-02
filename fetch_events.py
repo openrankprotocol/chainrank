@@ -86,12 +86,96 @@ EVENT_SIGNATURES = {
     "ParaswapSwapped": "0xe00361d207b252a464323eb23d45d42583e391f2031acdd2e9fa36efddd43cb0",
     # CoW Protocol: Trade(address indexed owner, address sellToken, address buyToken, uint256 sellAmount, uint256 buyAmount, uint256 feeAmount, bytes orderUid)
     "CowTrade": "0xa07a543ab8a018198e99ca0184c93fe9050a79400a0a723441f84de1d972cc17",
+    # Yearn v3 Vault Events
+    # Deposit(address indexed sender, address indexed owner, uint256 assets, uint256 shares)
+    "YearnDeposit": "0xdcbc1c05240f31ff3ad067ef1ee35ce4997762752e3a095284754544f4c709d7",
+    # Withdraw(address indexed sender, address indexed receiver, address indexed owner, uint256 assets, uint256 shares)
+    "YearnWithdraw": "0xfbde797d201c681b91056529119e0b02407c7bb96a4a2c75c01fc9667232c8db",
     # ERC-20 Events
     "Transfer": "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef",
     "Approval": "0x8c5be1e5ebec7d5bd14f71427d1e84f3dd0314c0f7b2291e5b200ac8c7c3b925",
     # Uniswap V3 Pool Events
     # Swap(address indexed sender, address indexed recipient, int256 amount0, int256 amount1, uint160 sqrtPriceX96, uint128 liquidity, int24 tick)
     "UniswapV3Swap": "0xc42079f94a6350d7e6235f29174924f928cc2ac818eb64fed8004e115fbcca67",
+    # ═══════════════════════════════════════════════════════════════════════════
+    # STAKING PROTOCOL EVENTS
+    # ═══════════════════════════════════════════════════════════════════════════
+    # Lido stETH Events
+    # Submitted(address indexed sender, uint256 amount, address referral)
+    "LidoSubmitted": "0x96a25c8ce0baabc1fdefd93e9ed25d8e092a3332f3aa9a41722b5697231d1d1a",
+    # Lido Withdrawal Queue Events
+    # WithdrawalRequested(uint256,address,address,uint256,uint256)
+    "LidoWithdrawalRequested": "0xf0cb471f23fb74ea44b8252eb1881a2dca546288d9f6e90d1a0e82fe0ed342ab",
+    # WithdrawalClaimed(uint256,address,address,uint256)
+    "LidoWithdrawalClaimed": "0x6ad26c5e238e7d002799f9a5db07e81ef14e37386ae03496d7a7ef04713e145b",
+    # EigenLayer Strategy Manager Events
+    # Deposit(address,address,uint256) - staker, token, shares (3 params, not 4!)
+    "EigenDeposit": "0x5548c837ab068cf56a2c2479df0882a4922fd203edb7517321831d95078c5f62",
+    # WithdrawalQueued(bytes32,address) - withdrawalRoot, depositor
+    "EigenWithdrawalQueued": "0xdab4a053ac3d59b4581b9aff6e51b4f37bf2b19ef0438178968133590aade726",
+    # WithdrawalCompleted(bytes32)
+    "EigenWithdrawalCompleted": "0xc97098c2f658800b4df29001527f7324bcdffcf6e8751a699ab920a1eced5b1d",
+    # EigenLayer Delegation Manager Events
+    # OperatorSharesIncreased(address,address,address,uint256) - most common delegation event
+    "EigenOperatorSharesIncreased": "0x1ec042c965e2edd7107b51188ee0f383e22e76179041ab3a9d18ff151405166c",
+    # OperatorSharesDecreased(address,address,address,uint256)
+    "EigenOperatorSharesDecreased": "0x6909600037b75d7b4733aedd815442b5ec018a827751c832aaff64eba5d6d2dd",
+    # StakerDelegated(address,address)
+    "EigenStakerDelegated": "0xc3ee9f2e5fda98e8066a1f745b2df9285f416fe98cf2559cd21484b3d8743304",
+    # StakerUndelegated(address,address)
+    "EigenStakerUndelegated": "0xfee30966a256b71e14bc0ebfc94315e28ef4a97a7131a9e2b7a310a73af44676",
+    # Rocket Pool Events
+    # DepositReceived(address,uint256,uint256)
+    "RocketDepositReceived": "0x7aa1a8eb998c779420645fc14513bf058edb347d95c2fc2e6845bdc22f888631",
+    # TokensMinted(address indexed to, uint256 amount, uint256 ethAmount, uint256 time)
+    "RocketTokensMinted": "0x6155cfd0fd028b0ca77e8495a60cbe563e8bce8611f0aad6fedbdaafc05d44a2",
+    # TokensBurned(address indexed from, uint256 amount, uint256 ethAmount, uint256 time)
+    "RocketTokensBurned": "0x19783b34589160c168487dc7f9c51ae0bcefe67a47d6708fba90f6ce0366d3d1",
+    # ether.fi Events
+    # Deposit(address,uint256,uint8,address) - depositor, amount, sourceOfFunds, referral
+    "EtherFiDeposit": "0xa241faf62e66ce518d1934ce4c936d806a02289ba483fac23beb8c15755be90d",
+    # Withdraw event - b9da3f3df62c28aca604806cc6ee9678189d7591ef511a77bb040fa8361e9e02
+    "EtherFiWithdraw": "0xb9da3f3df62c28aca604806cc6ee9678189d7591ef511a77bb040fa8361e9e02",
+    # Frax Finance Events
+    # ETHSubmitted(address,address,uint256,uint256)
+    "FraxETHSubmitted": "0x29b3e86ecfd94a32218997c40b051e650e4fd8c97fc7a4d266be3f7c61c5205b",
+    # Frax sfrxETH uses ERC4626 Deposit/Withdraw (same as Yearn)
+    "FraxDeposit": "0xdcbc1c05240f31ff3ad067ef1ee35ce4997762752e3a095284754544f4c709d7",
+    "FraxWithdraw": "0xfbde797d201c681b91056529119e0b02407c7bb96a4a2c75c01fc9667232c8db",
+    # ═══════════════════════════════════════════════════════════════════════════
+    # STAKING AGGREGATOR EVENTS
+    # ═══════════════════════════════════════════════════════════════════════════
+    # Renzo Events
+    # Deposit(address indexed depositor, address indexed token, uint256 amount, uint256 ezETHMinted, uint256 timestamp)
+    "RenzoDeposit": "0x4e2ca0515ed1aef1395f66b5303bb5d6f1bf9d61a353fa53f73f8ac9973fa9f6",
+    # UserWithdrawStarted(bytes32,address,address,uint256,uint256)
+    "RenzoWithdraw": "0xc09ed86575d29e28a57c7404cd6a8633bf722b616f11301ff62dc1c059804a7b",
+    # Kelp DAO Events
+    # AssetDeposit(address,address,uint256,uint256)
+    "KelpDeposit": "0xa1fe1983016c44964fc77ca865d02be0f16896800286c569d64467923ca8ffef",
+    # AssetWithdraw(address,address,uint256)
+    "KelpWithdraw": "0x3d32c53b74e7c44a5e4e1caa6ae931adab7c39bf958730ca47f761ac5ad0ac55",
+    # Puffer Finance Events - uses ERC4626 Deposit/Withdraw
+    # Deposit(address,address,uint256,uint256)
+    "PufferDeposit": "0xdcbc1c05240f31ff3ad067ef1ee35ce4997762752e3a095284754544f4c709d7",
+    # Withdraw(address,address,address,uint256,uint256)
+    "PufferWithdraw": "0xfbde797d201c681b91056529119e0b02407c7bb96a4a2c75c01fc9667232c8db",
+    # Pendle Events
+    # Swap(address,address,address,int256,int256)
+    "PendleSwap": "0xf0af0459879c8c3eebaefd078b77045d687a15e5a35d91114d6a57067758dc89",
+    # MintPY - use Transfer as fallback
+    "PendleMint": "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef",
+    # RedeemPY - use Transfer as fallback
+    "PendleRedeem": "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef",
+    # Origin OETH Events
+    # Deposit(address indexed _asset, address indexed _account, uint256 _amount)
+    "OriginDeposit": "0x5548c837ab068cf56a2c2479df0882a4922fd203edb7517321831d95078c5f62",
+    # Withdraw(address,address,uint256)
+    "OriginWithdraw": "0x9b1bfa7fa9ee420a16e124f794c35ac9f90472acc99140eb2f6447c714cad8eb",
+    # Mint(address indexed _addr, uint256 _value)
+    "OriginMint": "0x0f6798a560793a54c3bcfe86a93cde1e73087d944c0ea20544137d4121396885",
+    # Redeem(address indexed _addr, uint256 _value)
+    "OriginRedeem": "0x222838db2794d11532d940e8dec38ae307ed0b63cd97c233322e221f998767a6",
 }
 
 
@@ -391,6 +475,26 @@ def decode_log_data(log: dict, event_name: str) -> dict[str, Any]:
             decoded["buy_amount"] = int(data_hex[194:258], 16)
             decoded["fee_amount"] = int(data_hex[258:322], 16)
 
+    # Yearn v3 Vault Events
+    elif event_name == "YearnDeposit" and len(topics) >= 3:
+        # Deposit(address indexed sender, address indexed owner, uint256 assets, uint256 shares)
+        decoded["sender"] = _extract_address(topics[1])
+        decoded["owner"] = _extract_address(topics[2])
+        data_hex = data.hex() if isinstance(data, bytes) else data
+        if len(data_hex) >= 130:
+            decoded["assets"] = int(data_hex[2:66], 16)
+            decoded["shares"] = int(data_hex[66:130], 16)
+
+    elif event_name == "YearnWithdraw" and len(topics) >= 4:
+        # Withdraw(address indexed sender, address indexed receiver, address indexed owner, uint256 assets, uint256 shares)
+        decoded["sender"] = _extract_address(topics[1])
+        decoded["receiver"] = _extract_address(topics[2])
+        decoded["owner"] = _extract_address(topics[3])
+        data_hex = data.hex() if isinstance(data, bytes) else data
+        if len(data_hex) >= 130:
+            decoded["assets"] = int(data_hex[2:66], 16)
+            decoded["shares"] = int(data_hex[66:130], 16)
+
     elif event_name == "UniswapV3Swap" and len(topics) >= 3:
         # Swap(address indexed sender, address indexed recipient, int256 amount0, int256 amount1, uint160 sqrtPriceX96, uint128 liquidity, int24 tick)
         decoded["sender"] = _extract_address(topics[1])
@@ -416,6 +520,291 @@ def decode_log_data(log: dict, event_name: str) -> dict[str, Any]:
             tick_hex = data_hex[258:322]
             tick_val = int(tick_hex, 16)
             decoded["tick"] = tick_val if tick_val < 2**23 else tick_val - 2**24
+
+    # ═══════════════════════════════════════════════════════════════════════════
+    # STAKING PROTOCOL EVENTS
+    # ═══════════════════════════════════════════════════════════════════════════
+
+    # Lido stETH Events
+    elif event_name == "LidoSubmitted" and len(topics) >= 2:
+        # Submitted(address indexed sender, uint256 amount, address referral)
+        decoded["sender"] = _extract_address(topics[1])
+        data_hex = data.hex() if isinstance(data, bytes) else data
+        if len(data_hex) >= 130:
+            decoded["amount"] = int(data_hex[2:66], 16)
+            decoded["referral"] = "0x" + data_hex[90:130]
+
+    elif event_name == "LidoWithdrawalRequested" and len(topics) >= 4:
+        # WithdrawalRequested(uint256 indexed requestId, address indexed requestor, address indexed owner, uint256 amountOfStETH, uint256 amountOfShares)
+        decoded["request_id"] = int(
+            topics[1].hex() if isinstance(topics[1], bytes) else topics[1], 16
+        )
+        decoded["requestor"] = _extract_address(topics[2])
+        decoded["owner"] = _extract_address(topics[3])
+        data_hex = data.hex() if isinstance(data, bytes) else data
+        if len(data_hex) >= 130:
+            decoded["amount_steth"] = int(data_hex[2:66], 16)
+            decoded["amount_shares"] = int(data_hex[66:130], 16)
+
+    elif event_name == "LidoWithdrawalClaimed" and len(topics) >= 4:
+        # WithdrawalClaimed(uint256 indexed requestId, address indexed owner, address indexed receiver, uint256 amountOfETH)
+        decoded["request_id"] = int(
+            topics[1].hex() if isinstance(topics[1], bytes) else topics[1], 16
+        )
+        decoded["owner"] = _extract_address(topics[2])
+        decoded["receiver"] = _extract_address(topics[3])
+        data_hex = data.hex() if isinstance(data, bytes) else data
+        if len(data_hex) >= 66:
+            decoded["amount_eth"] = int(data_hex[2:66], 16)
+
+    # EigenLayer Strategy Manager Events
+    elif event_name == "EigenDeposit" and len(topics) >= 1:
+        # Deposit(address,address,uint256) - staker, token, shares (all in data, not indexed)
+        data_hex = data.hex() if isinstance(data, bytes) else data
+        if len(data_hex) >= 194:
+            decoded["staker"] = "0x" + data_hex[26:66]
+            decoded["token"] = "0x" + data_hex[90:130]
+            decoded["shares"] = int(data_hex[130:194], 16)
+
+    # EigenLayer Delegation Manager Events
+    elif event_name == "EigenOperatorSharesIncreased" and len(topics) >= 1:
+        # OperatorSharesIncreased(address,address,address,uint256) - all in data
+        data_hex = data.hex() if isinstance(data, bytes) else data
+        if len(data_hex) >= 258:
+            decoded["operator"] = "0x" + data_hex[26:66]
+            decoded["staker"] = "0x" + data_hex[90:130]
+            decoded["strategy"] = "0x" + data_hex[154:194]
+            decoded["shares"] = int(data_hex[194:258], 16)
+
+    elif event_name == "EigenOperatorSharesDecreased" and len(topics) >= 1:
+        # OperatorSharesDecreased(address,address,address,uint256) - all in data
+        data_hex = data.hex() if isinstance(data, bytes) else data
+        if len(data_hex) >= 258:
+            decoded["operator"] = "0x" + data_hex[26:66]
+            decoded["staker"] = "0x" + data_hex[90:130]
+            decoded["strategy"] = "0x" + data_hex[154:194]
+            decoded["shares"] = int(data_hex[194:258], 16)
+
+    elif event_name == "EigenStakerDelegated" and len(topics) >= 3:
+        # StakerDelegated(address indexed staker, address indexed operator)
+        decoded["staker"] = _extract_address(topics[1])
+        decoded["operator"] = _extract_address(topics[2])
+
+    elif event_name == "EigenStakerUndelegated" and len(topics) >= 3:
+        # StakerUndelegated(address indexed staker, address indexed operator)
+        decoded["staker"] = _extract_address(topics[1])
+        decoded["operator"] = _extract_address(topics[2])
+
+    # Rocket Pool Events
+    elif event_name == "RocketDepositReceived" and len(topics) >= 2:
+        # DepositReceived(address indexed from, uint256 amount, uint256 time)
+        decoded["from"] = _extract_address(topics[1])
+        data_hex = data.hex() if isinstance(data, bytes) else data
+        if len(data_hex) >= 130:
+            decoded["amount"] = int(data_hex[2:66], 16)
+            decoded["time"] = int(data_hex[66:130], 16)
+
+    elif event_name == "RocketTokensMinted" and len(topics) >= 2:
+        # TokensMinted(address indexed to, uint256 amount, uint256 ethAmount, uint256 time)
+        decoded["to"] = _extract_address(topics[1])
+        data_hex = data.hex() if isinstance(data, bytes) else data
+        if len(data_hex) >= 194:
+            decoded["amount"] = int(data_hex[2:66], 16)
+            decoded["eth_amount"] = int(data_hex[66:130], 16)
+            decoded["time"] = int(data_hex[130:194], 16)
+
+    elif event_name == "RocketTokensBurned" and len(topics) >= 2:
+        # TokensBurned(address indexed from, uint256 amount, uint256 ethAmount, uint256 time)
+        decoded["from"] = _extract_address(topics[1])
+        data_hex = data.hex() if isinstance(data, bytes) else data
+        if len(data_hex) >= 194:
+            decoded["amount"] = int(data_hex[2:66], 16)
+            decoded["eth_amount"] = int(data_hex[66:130], 16)
+            decoded["time"] = int(data_hex[130:194], 16)
+
+    # ether.fi Events
+    elif event_name == "EtherFiDeposit" and len(topics) >= 2:
+        # Deposit(address indexed sender, uint256 amount, uint8 sourceOfFunds, address referral)
+        decoded["sender"] = _extract_address(topics[1])
+        data_hex = data.hex() if isinstance(data, bytes) else data
+        if len(data_hex) >= 194:
+            decoded["amount"] = int(data_hex[2:66], 16)
+            decoded["source_of_funds"] = int(data_hex[66:130], 16)
+            decoded["referral"] = "0x" + data_hex[154:194]
+
+    elif event_name == "EtherFiWithdraw" and len(topics) >= 2:
+        # Withdraw event from ether.fi liquidity pool
+        decoded["user"] = _extract_address(topics[1])
+        data_hex = data.hex() if isinstance(data, bytes) else data
+        if len(data_hex) >= 66:
+            decoded["amount"] = int(data_hex[2:66], 16)
+
+    # Frax Finance Events
+    elif event_name == "FraxETHSubmitted" and len(topics) >= 3:
+        # ETHSubmitted(address indexed sender, address indexed recipient, uint256 sent_amount, uint256 withheld_amt)
+        decoded["sender"] = _extract_address(topics[1])
+        decoded["recipient"] = _extract_address(topics[2])
+        data_hex = data.hex() if isinstance(data, bytes) else data
+        if len(data_hex) >= 130:
+            decoded["sent_amount"] = int(data_hex[2:66], 16)
+            decoded["withheld_amount"] = int(data_hex[66:130], 16)
+
+    elif event_name == "FraxDeposit" and len(topics) >= 3:
+        # Deposit(address indexed sender, address indexed owner, uint256 assets, uint256 shares) - ERC4626
+        decoded["sender"] = _extract_address(topics[1])
+        decoded["owner"] = _extract_address(topics[2])
+        data_hex = data.hex() if isinstance(data, bytes) else data
+        if len(data_hex) >= 130:
+            decoded["assets"] = int(data_hex[2:66], 16)
+            decoded["shares"] = int(data_hex[66:130], 16)
+
+    elif event_name == "FraxWithdraw" and len(topics) >= 4:
+        # Withdraw(address indexed sender, address indexed receiver, address indexed owner, uint256 assets, uint256 shares) - ERC4626
+        decoded["sender"] = _extract_address(topics[1])
+        decoded["receiver"] = _extract_address(topics[2])
+        decoded["owner"] = _extract_address(topics[3])
+        data_hex = data.hex() if isinstance(data, bytes) else data
+        if len(data_hex) >= 130:
+            decoded["assets"] = int(data_hex[2:66], 16)
+            decoded["shares"] = int(data_hex[66:130], 16)
+
+    # ═══════════════════════════════════════════════════════════════════════════
+    # STAKING AGGREGATOR EVENTS
+    # ═══════════════════════════════════════════════════════════════════════════
+
+    # Renzo Events
+    elif event_name == "RenzoDeposit" and len(topics) >= 3:
+        # Deposit(address indexed depositor, address indexed token, uint256 amount, uint256 ezETHMinted, uint256 timestamp)
+        decoded["depositor"] = _extract_address(topics[1])
+        decoded["token"] = _extract_address(topics[2])
+        data_hex = data.hex() if isinstance(data, bytes) else data
+        if len(data_hex) >= 194:
+            decoded["amount"] = int(data_hex[2:66], 16)
+            decoded["ezeth_minted"] = int(data_hex[66:130], 16)
+            decoded["timestamp"] = int(data_hex[130:194], 16)
+
+    elif event_name == "RenzoWithdraw" and len(topics) >= 3:
+        # UserWithdrawStarted(bytes32 indexed withdrawalRoot, address indexed user, address indexed token, uint256 amount, uint256 ezETHBurned)
+        decoded["withdrawal_root"] = (
+            topics[1].hex() if isinstance(topics[1], bytes) else topics[1]
+        )
+        decoded["user"] = _extract_address(topics[2])
+        if len(topics) >= 4:
+            decoded["token"] = _extract_address(topics[3])
+        data_hex = data.hex() if isinstance(data, bytes) else data
+        if len(data_hex) >= 130:
+            decoded["amount"] = int(data_hex[2:66], 16)
+            decoded["ezeth_burned"] = int(data_hex[66:130], 16)
+
+    # Kelp DAO Events
+    elif event_name == "KelpDeposit" and len(topics) >= 3:
+        # AssetDeposit(address indexed depositor, address indexed asset, uint256 depositAmount, uint256 rsethMintAmount)
+        decoded["depositor"] = _extract_address(topics[1])
+        decoded["asset"] = _extract_address(topics[2])
+        data_hex = data.hex() if isinstance(data, bytes) else data
+        if len(data_hex) >= 130:
+            decoded["amount"] = int(data_hex[2:66], 16)
+            decoded["rseth_minted"] = int(data_hex[66:130], 16)
+
+    elif event_name == "KelpWithdraw" and len(topics) >= 3:
+        # AssetWithdraw(address indexed user, address indexed asset, uint256 amount)
+        decoded["user"] = _extract_address(topics[1])
+        decoded["asset"] = _extract_address(topics[2])
+        data_hex = data.hex() if isinstance(data, bytes) else data
+        if len(data_hex) >= 66:
+            decoded["amount"] = int(data_hex[2:66], 16)
+
+    # Puffer Finance Events
+    elif event_name == "PufferDeposit" and len(topics) >= 3:
+        # Deposited(address indexed depositor, address indexed receiver, uint256 amount, uint256 pufETHAmount)
+        decoded["depositor"] = _extract_address(topics[1])
+        decoded["receiver"] = _extract_address(topics[2])
+        data_hex = data.hex() if isinstance(data, bytes) else data
+        if len(data_hex) >= 130:
+            decoded["amount"] = int(data_hex[2:66], 16)
+            decoded["pufeth_amount"] = int(data_hex[66:130], 16)
+
+    elif event_name == "PufferWithdraw" and len(topics) >= 3:
+        # Withdrawn(address indexed user, address indexed receiver, uint256 pufETHAmount, uint256 ethAmount)
+        decoded["user"] = _extract_address(topics[1])
+        decoded["receiver"] = _extract_address(topics[2])
+        data_hex = data.hex() if isinstance(data, bytes) else data
+        if len(data_hex) >= 130:
+            decoded["pufeth_amount"] = int(data_hex[2:66], 16)
+            decoded["eth_amount"] = int(data_hex[66:130], 16)
+
+    # Pendle Events
+    elif event_name == "PendleSwap" and len(topics) >= 4:
+        # Swap(address indexed caller, address indexed market, address indexed receiver, int256 netPtOut, int256 netSyOut)
+        decoded["caller"] = _extract_address(topics[1])
+        decoded["market"] = _extract_address(topics[2])
+        decoded["receiver"] = _extract_address(topics[3])
+        data_hex = data.hex() if isinstance(data, bytes) else data
+        if len(data_hex) >= 130:
+            # Signed int256
+            net_pt_hex = data_hex[2:66]
+            net_sy_hex = data_hex[66:130]
+            decoded["net_pt_out"] = (
+                int(net_pt_hex, 16)
+                if int(net_pt_hex, 16) < 2**255
+                else int(net_pt_hex, 16) - 2**256
+            )
+            decoded["net_sy_out"] = (
+                int(net_sy_hex, 16)
+                if int(net_sy_hex, 16) < 2**255
+                else int(net_sy_hex, 16) - 2**256
+            )
+
+    elif event_name == "PendleMint" and len(topics) >= 4:
+        # MintPY(address indexed caller, address indexed receiver, address indexed YT, uint256 amountSyMinted, uint256 amountPYMinted)
+        decoded["caller"] = _extract_address(topics[1])
+        decoded["receiver"] = _extract_address(topics[2])
+        decoded["yt"] = _extract_address(topics[3])
+        data_hex = data.hex() if isinstance(data, bytes) else data
+        if len(data_hex) >= 130:
+            decoded["amount_sy_minted"] = int(data_hex[2:66], 16)
+            decoded["amount_py_minted"] = int(data_hex[66:130], 16)
+
+    elif event_name == "PendleRedeem" and len(topics) >= 4:
+        # RedeemPY(address indexed caller, address indexed receiver, address indexed YT, uint256 amountPYRedeemed, uint256 amountSyOut)
+        decoded["caller"] = _extract_address(topics[1])
+        decoded["receiver"] = _extract_address(topics[2])
+        decoded["yt"] = _extract_address(topics[3])
+        data_hex = data.hex() if isinstance(data, bytes) else data
+        if len(data_hex) >= 130:
+            decoded["amount_py_redeemed"] = int(data_hex[2:66], 16)
+            decoded["amount_sy_out"] = int(data_hex[66:130], 16)
+
+    # Origin OETH Events
+    elif event_name == "OriginDeposit" and len(topics) >= 3:
+        # Deposit(address indexed _asset, address indexed _account, uint256 _amount)
+        decoded["asset"] = _extract_address(topics[1])
+        decoded["account"] = _extract_address(topics[2])
+        data_hex = data.hex() if isinstance(data, bytes) else data
+        if len(data_hex) >= 66:
+            decoded["amount"] = int(data_hex[2:66], 16)
+
+    elif event_name == "OriginWithdraw" and len(topics) >= 3:
+        # Withdraw(address indexed _asset, address indexed _account, uint256 _amount)
+        decoded["asset"] = _extract_address(topics[1])
+        decoded["account"] = _extract_address(topics[2])
+        data_hex = data.hex() if isinstance(data, bytes) else data
+        if len(data_hex) >= 66:
+            decoded["amount"] = int(data_hex[2:66], 16)
+
+    elif event_name == "OriginMint" and len(topics) >= 2:
+        # Mint(address indexed _addr, uint256 _value)
+        decoded["account"] = _extract_address(topics[1])
+        data_hex = data.hex() if isinstance(data, bytes) else data
+        if len(data_hex) >= 66:
+            decoded["amount"] = int(data_hex[2:66], 16)
+
+    elif event_name == "OriginRedeem" and len(topics) >= 2:
+        # Redeem(address indexed _addr, uint256 _value)
+        decoded["account"] = _extract_address(topics[1])
+        data_hex = data.hex() if isinstance(data, bytes) else data
+        if len(data_hex) >= 66:
+            decoded["amount"] = int(data_hex[2:66], 16)
 
     return decoded
 

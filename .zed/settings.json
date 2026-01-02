@@ -1,9 +1,3 @@
 {
-  "file_scan_exclusions": [
-    "raw/**",
-    "trust/**",
-    "scores/**",
-    "output/**",
-    "**/*.csv"
-  ]
+  "file_scan_exclusions": [],
 }

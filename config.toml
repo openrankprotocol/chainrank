@@ -3,7 +3,7 @@
 
 # Time window for fetching events
 year = 2025
-month = 11
+month = 12
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # SEED CONTRACTS
@@ -65,6 +65,16 @@ ethereum = "0xC13e21B648A5Ee794902342038FF3aDAB66BE987"
 [seed_contracts.fluid]
 ethereum = "0x52Aa899454998Be5b000Ad077a46Bbe360F4e497"
 
+# Yearn v3 Vaults (Yield Aggregator)
+[seed_contracts.yearn_usdc]
+ethereum = "0xBe53A109B494E5c9f97b9Cd39Fe969BE68BF6204"
+
+[seed_contracts.yearn_weth]
+ethereum = "0xc56413869c6CDf96496f2b1eF801fEDBdFA7dDB0"
+
+[seed_contracts.yearn_dai]
+ethereum = "0x028eC7330ff87667b6dfb0D94b954c820195336c"
+
 # DEX Aggregators
 [seed_contracts.oneinch]
 ethereum = "0x1111111254EEB25477B68fb85Ed929f73A960582"
@@ -98,6 +108,88 @@ ethereum = "0x5777d92f208679DB4b9778590Fa3CAB3aC9e2168"
 # WETH/USDT 0.05%
 [seed_contracts.uniswap_v3_weth_usdt]
 ethereum = "0x11b815efB8f581194ae79006d24E0d814B7697F6"
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# STAKING PROTOCOLS
+# ═══════════════════════════════════════════════════════════════════════════════
+
+# Lido - Liquid Staking (~$25B+ TVL)
+[seed_contracts.lido_steth]
+ethereum = "0xae7ab96520DE3A18E5e111B5EaAb095312D7fE84"
+
+[seed_contracts.lido_wsteth]
+ethereum = "0x7f39C581F595B53c5cb19bD0b3f8dA6c935E2Ca0"
+
+[seed_contracts.lido_withdrawal_queue]
+ethereum = "0x889edC2eDab5f40e902b864aD4d7AdE8E412F9B1"
+
+# EigenLayer - Restaking Protocol (~$15B+ TVL)
+[seed_contracts.eigenlayer_strategy_manager]
+ethereum = "0x858646372CC42E1A627fcE94aa7A7033e7CF075A"
+
+[seed_contracts.eigenlayer_delegation_manager]
+ethereum = "0x39053D51B77DC0d36036Fc1fCc8Cb819df8Ef37A"
+
+
+
+# Rocket Pool - Decentralized Liquid Staking (~$3B+ TVL)
+[seed_contracts.rocketpool_reth]
+ethereum = "0xae78736Cd615f374D3085123A210448E74Fc6393"
+
+[seed_contracts.rocketpool_deposit_pool]
+ethereum = "0xDD3f50F8A6CafbE9b31a427582963f465E745AF8"
+
+# ether.fi - Liquid Restaking (~$6B+ TVL)
+[seed_contracts.etherfi_eeth]
+ethereum = "0x35fA164735182de50811E8e2E824cFb9B6118ac2"
+
+[seed_contracts.etherfi_weeth]
+ethereum = "0xCd5fE23C85820F7B72D0926FC9b05b43E359b7ee"
+
+[seed_contracts.etherfi_liquidity_pool]
+ethereum = "0x308861A430be4cce5502d0A12724771Fc6DaF216"
+
+[seed_contracts.etherfi_withdraw_request_nft]
+ethereum = "0x7d5706f6ef3F89B3951E23e557CDFBC3239D4E2c"
+
+# Frax Finance - Liquid Staking (~$1B+ TVL)
+[seed_contracts.frax_frxeth]
+ethereum = "0x5E8422345238F34275888049021821E8E08CAa1f"
+
+[seed_contracts.frax_sfrxeth]
+ethereum = "0xac3E018457B222d93114458476f3E3416Abbe38F"
+
+[seed_contracts.frax_eth_minter]
+ethereum = "0xbAFA44EFE7901E04E39Dad13167D089C559c1138"
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# STAKING AGGREGATORS / LIQUID RESTAKING PROTOCOLS
+# ═══════════════════════════════════════════════════════════════════════════════
+
+# Renzo - Liquid Restaking (~$3B TVL)
+[seed_contracts.renzo_restake_manager]
+ethereum = "0x74a09653A083691711cF8215a6ab074BB4e99ef5"
+
+[seed_contracts.renzo_ezeth]
+ethereum = "0xbf5495Efe5DB9ce00f80364C8B423567e58d2110"
+
+# Kelp DAO - Multi-LST Restaking (~$2B TVL)
+[seed_contracts.kelp_rseth]
+ethereum = "0xA1290d69c65A6Fe4DF752f95823fae25cB99e5A7"
+
+# Puffer Finance - Native Restaking (~$1.5B TVL)
+[seed_contracts.puffer_vault]
+ethereum = "0xD9A442856C234a39a81a089C06451EBAa4306a72"
+
+[seed_contracts.puffer_pufeth]
+ethereum = "0xD9A442856C234a39a81a089C06451EBAa4306a72"
+
+# Origin OETH - LST Auto-Compounder (~$400M TVL)
+[seed_contracts.origin_oeth_vault]
+ethereum = "0x39254033945AA2E4809Cc2977E7087BEE48bd7Ab"
+
+[seed_contracts.origin_oeth]
+ethereum = "0x856c4Efb76C1D1AE02e20CEB03A2A6a08b0b8dC3"
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # ALLOWLISTED EVENTS
@@ -167,6 +259,18 @@ spark = [
 fluid = [
     "FluidOperate"
 ]
+yearn_usdc = [
+    "YearnDeposit",
+    "YearnWithdraw"
+]
+yearn_weth = [
+    "YearnDeposit",
+    "YearnWithdraw"
+]
+yearn_dai = [
+    "YearnDeposit",
+    "YearnWithdraw"
+]
 oneinch = [
     "OneInchSwapped"
 ]
@@ -208,6 +312,102 @@ uniswap_v3_dai_usdc = [
 ]
 uniswap_v3_weth_usdt = [
     "UniswapV3Swap"
+]
+
+# Lido staking events
+lido_steth = [
+    "LidoSubmitted",
+    "Transfer"
+]
+lido_wsteth = [
+    "Transfer"
+]
+lido_withdrawal_queue = [
+    "LidoWithdrawalRequested",
+    "LidoWithdrawalClaimed"
+]
+
+# EigenLayer restaking events
+eigenlayer_strategy_manager = [
+    "EigenDeposit"
+]
+eigenlayer_delegation_manager = [
+    "EigenOperatorSharesIncreased",
+    "EigenOperatorSharesDecreased",
+    "EigenStakerDelegated",
+    "EigenStakerUndelegated"
+]
+
+
+# Rocket Pool staking events
+rocketpool_reth = [
+    "RocketTokensMinted",
+    "RocketTokensBurned",
+    "Transfer"
+]
+rocketpool_deposit_pool = [
+    "RocketDepositReceived"
+]
+
+# ether.fi restaking events
+etherfi_eeth = [
+    "Transfer"
+]
+etherfi_weeth = [
+    "Transfer"
+]
+etherfi_liquidity_pool = [
+    "EtherFiDeposit",
+    "EtherFiWithdraw"
+]
+etherfi_withdraw_request_nft = [
+    "Transfer"
+]
+
+# Frax staking events
+frax_frxeth = [
+    "Transfer"
+]
+frax_sfrxeth = [
+    "FraxDeposit",
+    "FraxWithdraw"
+]
+frax_eth_minter = [
+    "FraxETHSubmitted"
+]
+
+# Renzo restaking events
+renzo_restake_manager = [
+    "RenzoDeposit",
+    "RenzoWithdraw"
+]
+renzo_ezeth = [
+    "Transfer"
+]
+
+# Kelp DAO restaking events
+kelp_rseth = [
+    "Transfer"
+]
+
+# Puffer Finance restaking events
+puffer_vault = [
+    "PufferDeposit",
+    "PufferWithdraw"
+]
+puffer_pufeth = [
+    "Transfer"
+]
+
+# Origin OETH events
+origin_oeth_vault = [
+    "OriginDeposit",
+    "OriginWithdraw",
+    "OriginMint",
+    "OriginRedeem"
+]
+origin_oeth = [
+    "Transfer"
 ]
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -318,6 +518,19 @@ FluidOperate_withdraw = 0.3           # Withdraw assets
 FluidOperate_repay = 1.5              # Repay debt
 FluidOperate_borrow = 0.4             # Borrow assets
 
+# Yearn v3 trust weights
+[trust_weights.yearn_usdc]
+YearnDeposit = 1.0                    # User deposits into vault
+YearnWithdraw = 0.3                   # User withdraws from vault
+
+[trust_weights.yearn_weth]
+YearnDeposit = 1.0                    # User deposits into vault
+YearnWithdraw = 0.3                   # User withdraws from vault
+
+[trust_weights.yearn_dai]
+YearnDeposit = 1.0                    # User deposits into vault
+YearnWithdraw = 0.3                   # User withdraws from vault
+
 # DEX Aggregator trust weights
 [trust_weights.oneinch]
 OneInchSwapped = 0.7                  # User swapped via 1inch
@@ -361,7 +574,104 @@ UniswapV3Swap = 0.6                   # Swap on DAI/USDC pool
 [trust_weights.uniswap_v3_weth_usdt]
 UniswapV3Swap = 0.6                   # Swap on WETH/USDT pool
 
+# ═══════════════════════════════════════════════════════════════════════════════
+# STAKING PROTOCOL TRUST WEIGHTS
+# ═══════════════════════════════════════════════════════════════════════════════
+
+# Lido - Liquid Staking
+[trust_weights.lido_steth]
+LidoSubmitted = 1.0                   # User stakes ETH
+Transfer = 0.8                        # stETH transfer activity
+
+[trust_weights.lido_wsteth]
+Transfer = 0.8                        # wstETH transfer activity
+
+[trust_weights.lido_withdrawal_queue]
+LidoWithdrawalRequested = 0.4         # User requests withdrawal (reduces commitment)
+LidoWithdrawalClaimed = 0.3           # User claims withdrawal
+
+# EigenLayer - Restaking
+[trust_weights.eigenlayer_strategy_manager]
+EigenDeposit = 1.2                    # User restakes assets (higher trust - double commitment)
+
+[trust_weights.eigenlayer_delegation_manager]
+EigenOperatorSharesIncreased = 1.0    # Operator receives delegated shares
+EigenOperatorSharesDecreased = 0.3    # Operator loses delegated shares
+EigenStakerDelegated = 0.8            # User delegates to operator
+EigenStakerUndelegated = 0.3          # User undelegates from operator
+
+
+
+# Rocket Pool - Decentralized Staking
+[trust_weights.rocketpool_reth]
+RocketTokensMinted = 1.0              # User stakes ETH, receives rETH
+RocketTokensBurned = 0.3              # User redeems rETH for ETH
+Transfer = 0.8                        # rETH transfer activity
+
+[trust_weights.rocketpool_deposit_pool]
+RocketDepositReceived = 1.0           # User deposits ETH
+
+# ether.fi - Liquid Restaking
+[trust_weights.etherfi_eeth]
+Transfer = 0.8                        # eETH transfer activity
+
+[trust_weights.etherfi_weeth]
+Transfer = 0.8                        # weETH transfer activity
+
+[trust_weights.etherfi_liquidity_pool]
+EtherFiDeposit = 1.2                  # User deposits ETH (restaking = higher trust)
+EtherFiWithdraw = 0.3                 # User withdraws
+
+[trust_weights.etherfi_withdraw_request_nft]
+Transfer = 0.3                        # Withdrawal NFT transfer
+
+# Frax Finance - Liquid Staking
+[trust_weights.frax_frxeth]
+Transfer = 0.8                        # frxETH transfer activity
+
+[trust_weights.frax_sfrxeth]
+FraxDeposit = 1.0                     # User deposits frxETH for sfrxETH (yield-bearing)
+FraxWithdraw = 0.3                    # User withdraws from sfrxETH
+
+[trust_weights.frax_eth_minter]
+FraxETHSubmitted = 1.0                # User stakes ETH for frxETH
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# STAKING AGGREGATOR TRUST WEIGHTS
+# ═══════════════════════════════════════════════════════════════════════════════
+
+# Renzo - Liquid Restaking
+[trust_weights.renzo_restake_manager]
+RenzoDeposit = 1.2                    # User deposits for restaking (higher trust)
+RenzoWithdraw = 0.3                   # User withdraws
+
+[trust_weights.renzo_ezeth]
+Transfer = 0.8                        # ezETH transfer activity
+
+# Kelp DAO - Multi-LST Restaking
+[trust_weights.kelp_rseth]
+Transfer = 0.8                        # rsETH transfer activity
+
+# Puffer Finance - Native Restaking
+[trust_weights.puffer_vault]
+PufferDeposit = 1.2                   # User deposits for restaking
+PufferWithdraw = 0.3                  # User withdraws
+
+[trust_weights.puffer_pufeth]
+Transfer = 0.8                        # pufETH transfer activity
+
+# Origin OETH - LST Auto-Compounder
+[trust_weights.origin_oeth_vault]
+OriginDeposit = 1.0                   # User deposits LSTs
+OriginWithdraw = 0.3                  # User withdraws
+OriginMint = 1.0                      # OETH minted to user
+OriginRedeem = 0.3                    # User redeems OETH
+
+[trust_weights.origin_oeth]
+Transfer = 0.8                        # OETH transfer activity
+
 [trust_output]
 trust_folder = "trust"
 ens_verification_multiplier = 2.0
 fc_verification_multiplier = 2.0
+wrld_verification_multiplier = 2.0

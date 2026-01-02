@@ -116,6 +116,21 @@ def load_fc_addresses(raw_folder: Path) -> set[str]:
     return fc_addresses
 
 
+def load_wrld_addresses(raw_folder: Path) -> set[str]:
+    """Load World ID verified addresses from wrld_addresses.csv."""
+    wrld_path = raw_folder / "wrld_addresses.csv"
+    wrld_addresses = set()
+    if not wrld_path.exists():
+        return wrld_addresses
+    with open(wrld_path, "r") as f:
+        reader = csv.DictReader(f)
+        for row in reader:
+            address = row.get("address", "").lower()
+            if address:
+                wrld_addresses.add(address)
+    return wrld_addresses
+
+
 def safe_log(amount: float) -> float:
     """Calculate log2 of amount, flooring to 1 to avoid negative results."""
     if amount < 1:
@@ -131,6 +146,7 @@ class TrustCalculator:
         config: dict,
         ens_addresses: set[str] | None = None,
         fc_addresses: set[str] | None = None,
+        wrld_addresses: set[str] | None = None,
     ):
         self.config = config
         self.trust_weights = config.get("trust_weights", {})
@@ -147,11 +163,19 @@ class TrustCalculator:
         # Farcaster verification multiplier (default 2.0)
         self.fc_multiplier = self.trust_output.get("fc_verification_multiplier", 2.0)
 
+        # World ID verification multiplier (default 2.0)
+        self.wrld_multiplier = self.trust_output.get(
+            "wrld_verification_multiplier", 2.0
+        )
+
         # ENS verified addresses (receive multiplied incoming trust)
         self.ens_addresses = ens_addresses or set()
 
         # Farcaster verified addresses (receive multiplied incoming trust)
         self.fc_addresses = fc_addresses or set()
+
+        # World ID verified addresses (receive multiplied incoming trust)
+        self.wrld_addresses = wrld_addresses or set()
 
         # Trust scores: {(from_address, to_address): score}
         self.trust_edges = defaultdict(float)
@@ -654,6 +678,51 @@ class TrustCalculator:
                         )
                     )
 
+        # Yearn v3 Vault Events
+        elif event_name == "YearnDeposit":
+            # User deposits into Yearn vault
+            sender = row.get("sender", "").lower()
+            assets = 0
+            if "assets" in row and row["assets"]:
+                try:
+                    assets = int(row["assets"])
+                except (ValueError, TypeError):
+                    assets = 0
+            amount_normalized = assets / (10**decimals)
+            if sender:
+                flows.append(
+                    (
+                        sender,
+                        contract_address,
+                        amount_normalized,
+                        event_name,
+                        protocol,
+                        False,
+                    )
+                )
+
+        elif event_name == "YearnWithdraw":
+            # User withdraws from Yearn vault
+            receiver = row.get("receiver", "").lower()
+            assets = 0
+            if "assets" in row and row["assets"]:
+                try:
+                    assets = int(row["assets"])
+                except (ValueError, TypeError):
+                    assets = 0
+            amount_normalized = assets / (10**decimals)
+            if receiver:
+                flows.append(
+                    (
+                        contract_address,
+                        receiver,
+                        amount_normalized,
+                        event_name,
+                        protocol,
+                        False,
+                    )
+                )
+
         # DEX Aggregator Events
         elif event_name == "OneInchSwapped":
             # 1inch OrderFilled - maker is the user who filled the order
@@ -785,6 +854,662 @@ class TrustCalculator:
                     )
                 )
 
+        # ═══════════════════════════════════════════════════════════════════════════
+        # STAKING PROTOCOL EVENTS
+        # ═══════════════════════════════════════════════════════════════════════════
+
+        # Lido stETH Events
+        elif event_name == "LidoSubmitted":
+            # User stakes ETH with Lido
+            sender = row.get("sender", "").lower()
+            stake_amount = 0
+            if "amount" in row and row["amount"]:
+                try:
+                    stake_amount = int(row["amount"])
+                except (ValueError, TypeError):
+                    stake_amount = 0
+            # ETH has 18 decimals
+            amount_normalized = stake_amount / 1e18
+            if sender:
+                flows.append(
+                    (
+                        sender,
+                        contract_address,
+                        amount_normalized,
+                        event_name,
+                        protocol,
+                        False,
+                    )
+                )
+
+        elif event_name == "LidoWithdrawalRequested":
+            # User requests withdrawal from Lido
+            requestor = row.get("requestor", "").lower()
+            amount_steth = 0
+            if "amount_steth" in row and row["amount_steth"]:
+                try:
+                    amount_steth = int(row["amount_steth"])
+                except (ValueError, TypeError):
+                    amount_steth = 0
+            amount_normalized = amount_steth / 1e18
+            if requestor:
+                flows.append(
+                    (
+                        requestor,
+                        contract_address,
+                        amount_normalized,
+                        event_name,
+                        protocol,
+                        False,
+                    )
+                )
+
+        elif event_name == "LidoWithdrawalClaimed":
+            # User claims withdrawal from Lido
+            receiver = row.get("receiver", "").lower()
+            amount_eth = 0
+            if "amount_eth" in row and row["amount_eth"]:
+                try:
+                    amount_eth = int(row["amount_eth"])
+                except (ValueError, TypeError):
+                    amount_eth = 0
+            amount_normalized = amount_eth / 1e18
+            if receiver:
+                flows.append(
+                    (
+                        contract_address,
+                        receiver,
+                        amount_normalized,
+                        event_name,
+                        protocol,
+                        False,
+                    )
+                )
+
+        # EigenLayer Strategy Manager Events
+        elif event_name == "EigenDeposit":
+            # User deposits/restakes into EigenLayer
+            staker = row.get("staker", "").lower()
+            shares = 0
+            if "shares" in row and row["shares"]:
+                try:
+                    shares = int(row["shares"])
+                except (ValueError, TypeError):
+                    shares = 0
+            # Shares typically 18 decimals
+            amount_normalized = shares / 1e18
+            if staker:
+                flows.append(
+                    (
+                        staker,
+                        contract_address,
+                        amount_normalized,
+                        event_name,
+                        protocol,
+                        False,
+                    )
+                )
+
+        elif event_name == "EigenOperatorSharesIncreased":
+            # Operator receives delegated shares from staker
+            staker = row.get("staker", "").lower()
+            operator = row.get("operator", "").lower()
+            shares = 0
+            if "shares" in row and row["shares"]:
+                try:
+                    shares = int(row["shares"])
+                except (ValueError, TypeError):
+                    shares = 0
+            amount_normalized = shares / 1e18
+            if staker and operator:
+                # Staker trusts the operator with their shares
+                flows.append(
+                    (
+                        staker,
+                        operator,
+                        amount_normalized,
+                        event_name,
+                        protocol,
+                        False,
+                    )
+                )
+
+        elif event_name == "EigenOperatorSharesDecreased":
+            # Operator loses delegated shares (withdrawal/undelegation)
+            staker = row.get("staker", "").lower()
+            shares = 0
+            if "shares" in row and row["shares"]:
+                try:
+                    shares = int(row["shares"])
+                except (ValueError, TypeError):
+                    shares = 0
+            amount_normalized = shares / 1e18
+            if staker:
+                flows.append(
+                    (
+                        contract_address,
+                        staker,
+                        amount_normalized,
+                        event_name,
+                        protocol,
+                        False,
+                    )
+                )
+
+        elif event_name == "EigenStakerDelegated":
+            # User delegates to an operator
+            staker = row.get("staker", "").lower()
+            operator = row.get("operator", "").lower()
+            if staker and operator:
+                # Staker trusts the operator
+                flows.append(
+                    (
+                        staker,
+                        operator,
+                        1.0,  # Nominal value for delegation
+                        event_name,
+                        protocol,
+                        False,
+                    )
+                )
+
+        elif event_name == "EigenStakerUndelegated":
+            # User undelegates from an operator
+            staker = row.get("staker", "").lower()
+            if staker:
+                flows.append(
+                    (
+                        staker,
+                        contract_address,
+                        1.0,  # Nominal value
+                        event_name,
+                        protocol,
+                        False,
+                    )
+                )
+
+        # Rocket Pool Events
+        elif event_name == "RocketDepositReceived":
+            # User deposits ETH to Rocket Pool
+            from_addr = row.get("from", "").lower()
+            deposit_amount = 0
+            if "amount" in row and row["amount"]:
+                try:
+                    deposit_amount = int(row["amount"])
+                except (ValueError, TypeError):
+                    deposit_amount = 0
+            amount_normalized = deposit_amount / 1e18
+            if from_addr:
+                flows.append(
+                    (
+                        from_addr,
+                        contract_address,
+                        amount_normalized,
+                        event_name,
+                        protocol,
+                        False,
+                    )
+                )
+
+        elif event_name == "RocketTokensMinted":
+            # rETH minted to user (deposit confirmation)
+            to_addr = row.get("to", "").lower()
+            eth_amount = 0
+            if "eth_amount" in row and row["eth_amount"]:
+                try:
+                    eth_amount = int(row["eth_amount"])
+                except (ValueError, TypeError):
+                    eth_amount = 0
+            amount_normalized = eth_amount / 1e18
+            if to_addr:
+                flows.append(
+                    (
+                        to_addr,
+                        contract_address,
+                        amount_normalized,
+                        event_name,
+                        protocol,
+                        False,
+                    )
+                )
+
+        elif event_name == "RocketTokensBurned":
+            # User burns rETH to withdraw ETH
+            from_addr = row.get("from", "").lower()
+            eth_amount = 0
+            if "eth_amount" in row and row["eth_amount"]:
+                try:
+                    eth_amount = int(row["eth_amount"])
+                except (ValueError, TypeError):
+                    eth_amount = 0
+            amount_normalized = eth_amount / 1e18
+            if from_addr:
+                flows.append(
+                    (
+                        contract_address,
+                        from_addr,
+                        amount_normalized,
+                        event_name,
+                        protocol,
+                        False,
+                    )
+                )
+
+        # ether.fi Events
+        elif event_name == "EtherFiDeposit":
+            # User deposits ETH to ether.fi
+            sender = row.get("sender", "").lower()
+            deposit_amount = 0
+            if "amount" in row and row["amount"]:
+                try:
+                    deposit_amount = int(row["amount"])
+                except (ValueError, TypeError):
+                    deposit_amount = 0
+            amount_normalized = deposit_amount / 1e18
+            if sender:
+                flows.append(
+                    (
+                        sender,
+                        contract_address,
+                        amount_normalized,
+                        event_name,
+                        protocol,
+                        False,
+                    )
+                )
+
+        elif event_name == "EtherFiWithdraw":
+            # User withdraws from ether.fi
+            user = row.get("user", "").lower()
+            withdraw_amount = 0
+            if "amount" in row and row["amount"]:
+                try:
+                    withdraw_amount = int(row["amount"])
+                except (ValueError, TypeError):
+                    withdraw_amount = 0
+            amount_normalized = withdraw_amount / 1e18
+            if user:
+                flows.append(
+                    (
+                        contract_address,
+                        user,
+                        amount_normalized,
+                        event_name,
+                        protocol,
+                        False,
+                    )
+                )
+
+        # Frax Finance Events
+        elif event_name == "FraxETHSubmitted":
+            # User stakes ETH for frxETH
+            sender = row.get("sender", "").lower()
+            sent_amount = 0
+            if "sent_amount" in row and row["sent_amount"]:
+                try:
+                    sent_amount = int(row["sent_amount"])
+                except (ValueError, TypeError):
+                    sent_amount = 0
+            amount_normalized = sent_amount / 1e18
+            if sender:
+                flows.append(
+                    (
+                        sender,
+                        contract_address,
+                        amount_normalized,
+                        event_name,
+                        protocol,
+                        False,
+                    )
+                )
+
+        elif event_name == "FraxDeposit":
+            # User deposits frxETH for sfrxETH (ERC4626)
+            sender = row.get("sender", "").lower()
+            assets = 0
+            if "assets" in row and row["assets"]:
+                try:
+                    assets = int(row["assets"])
+                except (ValueError, TypeError):
+                    assets = 0
+            amount_normalized = assets / 1e18
+            if sender:
+                flows.append(
+                    (
+                        sender,
+                        contract_address,
+                        amount_normalized,
+                        event_name,
+                        protocol,
+                        False,
+                    )
+                )
+
+        elif event_name == "FraxWithdraw":
+            # User withdraws from sfrxETH (ERC4626)
+            receiver = row.get("receiver", "").lower()
+            assets = 0
+            if "assets" in row and row["assets"]:
+                try:
+                    assets = int(row["assets"])
+                except (ValueError, TypeError):
+                    assets = 0
+            amount_normalized = assets / 1e18
+            if receiver:
+                flows.append(
+                    (
+                        contract_address,
+                        receiver,
+                        amount_normalized,
+                        event_name,
+                        protocol,
+                        False,
+                    )
+                )
+
+        # ═══════════════════════════════════════════════════════════════════════════
+        # STAKING AGGREGATOR EVENTS
+        # ═══════════════════════════════════════════════════════════════════════════
+
+        # Renzo Events
+        elif event_name == "RenzoDeposit":
+            # User deposits for restaking
+            depositor = row.get("depositor", "").lower()
+            deposit_amount = 0
+            if "amount" in row and row["amount"]:
+                try:
+                    deposit_amount = int(row["amount"])
+                except (ValueError, TypeError):
+                    deposit_amount = 0
+            amount_normalized = deposit_amount / 1e18
+            if depositor:
+                flows.append(
+                    (
+                        depositor,
+                        contract_address,
+                        amount_normalized,
+                        event_name,
+                        protocol,
+                        False,
+                    )
+                )
+
+        elif event_name == "RenzoWithdraw":
+            # User withdraws from Renzo
+            user = row.get("user", "").lower()
+            withdraw_amount = 0
+            if "amount" in row and row["amount"]:
+                try:
+                    withdraw_amount = int(row["amount"])
+                except (ValueError, TypeError):
+                    withdraw_amount = 0
+            amount_normalized = withdraw_amount / 1e18
+            if user:
+                flows.append(
+                    (
+                        contract_address,
+                        user,
+                        amount_normalized,
+                        event_name,
+                        protocol,
+                        False,
+                    )
+                )
+
+        # Kelp DAO Events
+        elif event_name == "KelpDeposit":
+            # User deposits LST for restaking
+            depositor = row.get("depositor", "").lower()
+            deposit_amount = 0
+            if "amount" in row and row["amount"]:
+                try:
+                    deposit_amount = int(row["amount"])
+                except (ValueError, TypeError):
+                    deposit_amount = 0
+            amount_normalized = deposit_amount / 1e18
+            if depositor:
+                flows.append(
+                    (
+                        depositor,
+                        contract_address,
+                        amount_normalized,
+                        event_name,
+                        protocol,
+                        False,
+                    )
+                )
+
+        elif event_name == "KelpWithdraw":
+            # User withdraws from Kelp
+            user = row.get("user", "").lower()
+            withdraw_amount = 0
+            if "amount" in row and row["amount"]:
+                try:
+                    withdraw_amount = int(row["amount"])
+                except (ValueError, TypeError):
+                    withdraw_amount = 0
+            amount_normalized = withdraw_amount / 1e18
+            if user:
+                flows.append(
+                    (
+                        contract_address,
+                        user,
+                        amount_normalized,
+                        event_name,
+                        protocol,
+                        False,
+                    )
+                )
+
+        # Puffer Finance Events
+        elif event_name == "PufferDeposit":
+            # User deposits for restaking
+            depositor = row.get("depositor", "").lower()
+            deposit_amount = 0
+            if "amount" in row and row["amount"]:
+                try:
+                    deposit_amount = int(row["amount"])
+                except (ValueError, TypeError):
+                    deposit_amount = 0
+            amount_normalized = deposit_amount / 1e18
+            if depositor:
+                flows.append(
+                    (
+                        depositor,
+                        contract_address,
+                        amount_normalized,
+                        event_name,
+                        protocol,
+                        False,
+                    )
+                )
+
+        elif event_name == "PufferWithdraw":
+            # User withdraws from Puffer
+            user = row.get("user", "").lower()
+            eth_amount = 0
+            if "eth_amount" in row and row["eth_amount"]:
+                try:
+                    eth_amount = int(row["eth_amount"])
+                except (ValueError, TypeError):
+                    eth_amount = 0
+            amount_normalized = eth_amount / 1e18
+            if user:
+                flows.append(
+                    (
+                        contract_address,
+                        user,
+                        amount_normalized,
+                        event_name,
+                        protocol,
+                        False,
+                    )
+                )
+
+        # Pendle Events
+        elif event_name == "PendleSwap":
+            # User swaps yield tokens
+            caller = row.get("caller", "").lower()
+            # Use absolute value of net_pt_out or net_sy_out
+            net_pt = 0
+            net_sy = 0
+            if "net_pt_out" in row and row["net_pt_out"]:
+                try:
+                    net_pt = abs(int(row["net_pt_out"]))
+                except (ValueError, TypeError):
+                    net_pt = 0
+            if "net_sy_out" in row and row["net_sy_out"]:
+                try:
+                    net_sy = abs(int(row["net_sy_out"]))
+                except (ValueError, TypeError):
+                    net_sy = 0
+            swap_amount = max(net_pt, net_sy)
+            amount_normalized = swap_amount / 1e18
+            if caller:
+                flows.append(
+                    (
+                        caller,
+                        contract_address,
+                        amount_normalized,
+                        event_name,
+                        protocol,
+                        False,
+                    )
+                )
+
+        elif event_name == "PendleMint":
+            # User mints PT/YT tokens
+            caller = row.get("caller", "").lower()
+            mint_amount = 0
+            if "amount_py_minted" in row and row["amount_py_minted"]:
+                try:
+                    mint_amount = int(row["amount_py_minted"])
+                except (ValueError, TypeError):
+                    mint_amount = 0
+            amount_normalized = mint_amount / 1e18
+            if caller:
+                flows.append(
+                    (
+                        caller,
+                        contract_address,
+                        amount_normalized,
+                        event_name,
+                        protocol,
+                        False,
+                    )
+                )
+
+        elif event_name == "PendleRedeem":
+            # User redeems PT/YT tokens
+            caller = row.get("caller", "").lower()
+            redeem_amount = 0
+            if "amount_py_redeemed" in row and row["amount_py_redeemed"]:
+                try:
+                    redeem_amount = int(row["amount_py_redeemed"])
+                except (ValueError, TypeError):
+                    redeem_amount = 0
+            amount_normalized = redeem_amount / 1e18
+            if caller:
+                flows.append(
+                    (
+                        contract_address,
+                        caller,
+                        amount_normalized,
+                        event_name,
+                        protocol,
+                        False,
+                    )
+                )
+
+        # Origin OETH Events
+        elif event_name == "OriginDeposit":
+            # User deposits LSTs to Origin vault
+            account = row.get("account", "").lower()
+            deposit_amount = 0
+            if "amount" in row and row["amount"]:
+                try:
+                    deposit_amount = int(row["amount"])
+                except (ValueError, TypeError):
+                    deposit_amount = 0
+            amount_normalized = deposit_amount / 1e18
+            if account:
+                flows.append(
+                    (
+                        account,
+                        contract_address,
+                        amount_normalized,
+                        event_name,
+                        protocol,
+                        False,
+                    )
+                )
+
+        elif event_name == "OriginWithdraw":
+            # User withdraws from Origin vault
+            account = row.get("account", "").lower()
+            withdraw_amount = 0
+            if "amount" in row and row["amount"]:
+                try:
+                    withdraw_amount = int(row["amount"])
+                except (ValueError, TypeError):
+                    withdraw_amount = 0
+            amount_normalized = withdraw_amount / 1e18
+            if account:
+                flows.append(
+                    (
+                        contract_address,
+                        account,
+                        amount_normalized,
+                        event_name,
+                        protocol,
+                        False,
+                    )
+                )
+
+        elif event_name == "OriginMint":
+            # OETH minted to user
+            account = row.get("account", "").lower()
+            mint_amount = 0
+            if "amount" in row and row["amount"]:
+                try:
+                    mint_amount = int(row["amount"])
+                except (ValueError, TypeError):
+                    mint_amount = 0
+            amount_normalized = mint_amount / 1e18
+            if account:
+                flows.append(
+                    (
+                        account,
+                        contract_address,
+                        amount_normalized,
+                        event_name,
+                        protocol,
+                        False,
+                    )
+                )
+
+        elif event_name == "OriginRedeem":
+            # User redeems OETH
+            account = row.get("account", "").lower()
+            redeem_amount = 0
+            if "amount" in row and row["amount"]:
+                try:
+                    redeem_amount = int(row["amount"])
+                except (ValueError, TypeError):
+                    redeem_amount = 0
+            amount_normalized = redeem_amount / 1e18
+            if account:
+                flows.append(
+                    (
+                        contract_address,
+                        account,
+                        amount_normalized,
+                        event_name,
+                        protocol,
+                        False,
+                    )
+                )
+
         return flows
 
     def process_events(self, csv_path: Path) -> int:
@@ -850,6 +1575,9 @@ class TrustCalculator:
             # If the recipient has a Farcaster verified address, apply FC multiplier
             if to_addr in self.fc_addresses:
                 trust_delta *= self.fc_multiplier
+            # If the recipient has a World ID verified address, apply WRLD multiplier
+            if to_addr in self.wrld_addresses:
+                trust_delta *= self.wrld_multiplier
 
             # Add to edge trust (will floor to 0 later)
             edge_key = (from_addr, to_addr)
@@ -908,6 +1636,8 @@ class TrustCalculator:
         print(f"  ENS multiplier: {self.ens_multiplier}x")
         print(f"  FC addresses in dataset: {len(self.fc_addresses):,}")
         print(f"  FC multiplier: {self.fc_multiplier}x")
+        print(f"  WRLD addresses in dataset: {len(self.wrld_addresses):,}")
+        print(f"  WRLD multiplier: {self.wrld_multiplier}x")
 
         if non_zero_edges > 0:
             avg_trust = total_trust / non_zero_edges
@@ -977,8 +1707,15 @@ def main():
     else:
         print("No Farcaster addresses found")
 
+    # Load World ID addresses
+    wrld_addresses = load_wrld_addresses(raw_folder)
+    if wrld_addresses:
+        print(f"Loaded {len(wrld_addresses):,} World ID-verified addresses")
+    else:
+        print("No World ID addresses found")
+
     # Initialize calculator
-    calculator = TrustCalculator(config, ens_addresses, fc_addresses)
+    calculator = TrustCalculator(config, ens_addresses, fc_addresses, wrld_addresses)
 
     # Get chain
     chain = args.chain.lower()

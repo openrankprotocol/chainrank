@@ -203,11 +203,53 @@ KNOWN_PROTOCOLS = {
         "protocol": "lido",
         "category": "Staking",
     },
+    "0x889edc2edab5f40e902b864ad4d7ade8e412f9b1": {
+        "name": "Lido Withdrawal Queue",
+        "protocol": "lido",
+        "category": "Staking",
+    },
     # Rocket Pool
     "0xae78736cd615f374d3085123a210448e74fc6393": {
         "name": "Rocket Pool rETH",
         "protocol": "rocketpool",
         "category": "Staking",
+    },
+    "0xdd3f50f8a6cafbe9b31a427582963f465e745af8": {
+        "name": "Rocket Pool Deposit Pool",
+        "protocol": "rocketpool",
+        "category": "Staking",
+    },
+    # EigenLayer
+    "0x858646372cc42e1a627fce94aa7a7033e7cf075a": {
+        "name": "EigenLayer Strategy Manager",
+        "protocol": "eigenlayer",
+        "category": "Restaking",
+    },
+    "0x39053d51b77dc0d36036fc1fcc8cb819df8ef37a": {
+        "name": "EigenLayer Delegation Manager",
+        "protocol": "eigenlayer",
+        "category": "Restaking",
+    },
+    # ether.fi
+    "0x35fa164735182de50811e8e2e824cfb9b6118ac2": {
+        "name": "ether.fi eETH",
+        "protocol": "etherfi",
+        "category": "Restaking",
+    },
+    "0xcd5fe23c85820f7b72d0926fc9b05b43e359b7ee": {
+        "name": "ether.fi weETH",
+        "protocol": "etherfi",
+        "category": "Restaking",
+    },
+    "0x308861a430be4cce5502d0a12724771fc6daf216": {
+        "name": "ether.fi Liquidity Pool",
+        "protocol": "etherfi",
+        "category": "Restaking",
+    },
+    "0x7d5706f6ef3f89b3951e23e557cdfbc3239d4e2c": {
+        "name": "ether.fi Withdraw Request NFT",
+        "protocol": "etherfi",
+        "category": "Restaking",
     },
     # Convex
     "0xf403c135812408bfbe8713b5a23a04b3d48aae31": {
@@ -222,8 +264,18 @@ KNOWN_PROTOCOLS = {
         "category": "Yield",
     },
     # Frax
+    "0x5e8422345238f34275888049021821e8e08caa1f": {
+        "name": "Frax frxETH",
+        "protocol": "frax",
+        "category": "Staking",
+    },
     "0xac3e018457b222d93114458476f3e3416abbe38f": {
         "name": "Frax sfrxETH",
+        "protocol": "frax",
+        "category": "Staking",
+    },
+    "0xbafa44efe7901e04e39dad13167d089c559c1138": {
+        "name": "Frax ETH Minter",
         "protocol": "frax",
         "category": "Staking",
     },
@@ -231,6 +283,50 @@ KNOWN_PROTOCOLS = {
     "0x00000000005bbb0ef59571e58418f9a4357b68a0": {
         "name": "Pendle Router V3",
         "protocol": "pendle",
+        "category": "Yield",
+    },
+    "0x888888888889758f76e7103c6cbf23abbf58f946": {
+        "name": "Pendle Router V4",
+        "protocol": "pendle",
+        "category": "Yield",
+    },
+    # Renzo - Liquid Restaking
+    "0x74a09653a083691711cf8215a6ab074bb4e99ef5": {
+        "name": "Renzo RestakeManager",
+        "protocol": "renzo",
+        "category": "Restaking",
+    },
+    "0xbf5495efe5db9ce00f80364c8b423567e58d2110": {
+        "name": "Renzo ezETH",
+        "protocol": "renzo",
+        "category": "Restaking",
+    },
+    # Kelp DAO - Multi-LST Restaking
+    "0x036676389e48133b63a802f8635ad39e752d375d": {
+        "name": "Kelp LRT Deposit Pool",
+        "protocol": "kelp",
+        "category": "Restaking",
+    },
+    "0xa1290d69c65a6fe4df752f95823fae25cb99e5a7": {
+        "name": "Kelp rsETH",
+        "protocol": "kelp",
+        "category": "Restaking",
+    },
+    # Puffer Finance - Native Restaking
+    "0xd9a442856c234a39a81a089c06451ebaa4306a72": {
+        "name": "Puffer Vault / pufETH",
+        "protocol": "puffer",
+        "category": "Restaking",
+    },
+    # Origin OETH - LST Auto-Compounder
+    "0x39254033945aa2e4809cc2977e7087bee48bd7ab": {
+        "name": "Origin OETH Vault",
+        "protocol": "origin",
+        "category": "Yield",
+    },
+    "0x856c4efb76c1d1ae02e20ceb03a2a6a08b0b8dc3": {
+        "name": "Origin OETH",
+        "protocol": "origin",
         "category": "Yield",
     },
     # Morpho

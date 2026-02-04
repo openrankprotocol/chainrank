@@ -63,6 +63,15 @@ EVENT_SIGNATURES = {
     "DistributedSupplierComp": "0x2caecd17d02f56fa897705dcc740da2d237c373f70686f4e0d9bd3bf0400ea7a",
     # DistributedBorrowerComp(address indexed cToken, address indexed borrower, uint256 compDelta, uint256 compBorrowIndex)
     "DistributedBorrowerComp": "0x1fc3ecc087d8d2d15e23d0032af5a47571a93e0005cf5a61031e3d5c6d40b185",
+    # Compound V3 (Comet) Events
+    # Supply(address indexed from, address indexed dst, uint256 amount)
+    "CometSupply": "0xd1cf3d156d5f8f0d50f6c122ed609cec09d35c9b9fb3fff6ea0959134dae424e",
+    # Withdraw(address indexed src, address indexed to, uint256 amount)
+    "CometWithdraw": "0x9b1bfa7fa9ee420a16e124f794c35ac9f90472acc99140eb2f6447c714cad8eb",
+    # SupplyCollateral(address indexed from, address indexed dst, address indexed asset, uint256 amount)
+    "SupplyCollateral": "0xfa56f7b24f17183d81894d3ac2ee654e3c26388d17a28dbd9549b8114304e1f4",
+    # WithdrawCollateral(address indexed src, address indexed to, address indexed asset, uint256 amount)
+    "WithdrawCollateral": "0xd6d480d5b3068db003533b170d67561494d72e3bf9fa40a266f1b28c8a0a7e7e",
     # Morpho Blue Events
     # Supply(bytes32 indexed id, address indexed caller, address indexed onBehalf, uint256 assets, uint256 shares)
     "MorphoSupply": "0xedf8870433c83823eb071d3df1caa8d008f12f6440918c20d75a3602cda30fe0",
@@ -80,6 +89,8 @@ EVENT_SIGNATURES = {
     # DEX Aggregator Events
     # 1inch v5: OrderFilled(address indexed maker, bytes32 orderHash, uint256 remainingAmount)
     "OneInchSwapped": "0xb9ed0243fdf00f0545c63a0af8850c090d86bb46682baec4bf3c496814fe4f02",
+    # 1inch v6 (Fusion): OrderFilled(bytes32 orderHash, uint256 remainingAmount)
+    "OneInchV6OrderFilled": "0x5152abf959f6564662358c2e52b702259b78bac5ee7842a0f01937e670efcc7d",
     # 0x Exchange: TransformedERC20(address indexed taker, address inputToken, address outputToken, uint256 inputTokenAmount, uint256 outputTokenAmount)
     "ZeroExTransformedERC20": "0x0f6672f78a59ba8e5e5b5d38df3ebc67f3c792e2c9259b8d97d7f00dd78ba1b3",
     # Paraswap v5: SwappedV3(bytes16 uuid, address partner, uint256 feePercent, address initiator, address indexed beneficiary, address indexed srcToken, address indexed destToken, uint256 srcAmount, uint256 receivedAmount, uint256 expectedAmount)
@@ -97,6 +108,27 @@ EVENT_SIGNATURES = {
     # Uniswap V3 Pool Events
     # Swap(address indexed sender, address indexed recipient, int256 amount0, int256 amount1, uint160 sqrtPriceX96, uint128 liquidity, int24 tick)
     "UniswapV3Swap": "0xc42079f94a6350d7e6235f29174924f928cc2ac818eb64fed8004e115fbcca67",
+    # ═══════════════════════════════════════════════════════════════════════════
+    # BASE-NATIVE PROTOCOL EVENTS
+    # ═══════════════════════════════════════════════════════════════════════════
+    # Aerodrome DEX Events (Velodrome V2 fork)
+    # Swap(address sender, address to, uint256 amount0In, uint256 amount1In, uint256 amount0Out, uint256 amount1Out)
+    "AerodromeSwap": "0xb3e2773606abfd36b5bd91394b3a54d1398336c65005baf7bf7a05efeffaf75b",
+    # Clanker Token Factory Events
+    # TokenCreated(address indexed token, address indexed creator, string name, string symbol)
+    "ClankerTokenCreated": "0x85e892981b234101136bc30081e0a5c44345bebc0940193230c20a43b279e2d2",
+    # Zora ERC-1155 Creator Events
+    # CreatorPayoutAddressUpdated(address indexed newPayoutAddress)
+    "ZoraCreatorPayoutAddressUpdated": "0x199a0cde0eb7db48fa3da2a3da23de0c6c025bc5ef009e99454d67a3bf8e9d41",
+    # TransferSingle(address indexed operator, address indexed from, address indexed to, uint256 id, uint256 value)
+    "TransferSingle": "0xc3d58168c5ae7397731d063d5bbf3d657854427343f4c083240f7aacaa2d0f62",
+    # TransferBatch(address indexed operator, address indexed from, address indexed to, uint256[] ids, uint256[] values)
+    "TransferBatch": "0x4a39dc06d4c0dbc64b70af90fd698a233a518aa5d07e595d983b8c0526c8f7fb",
+    # Virtuals Protocol Events
+    # TokenCreated(address indexed token, address indexed creator, uint256 virtualId)
+    "VirtualsTokenCreated": "0x06abb84c4186a35d0bfb8c5dc8a5e60a2e02c4a8e6b6c1f5e8f7a3c9d2b1e0f8",
+    # Trade(address indexed trader, address indexed token, bool isBuy, uint256 tokenAmount, uint256 ethAmount)
+    "VirtualsTrade": "0x89f5adc174562e07c9c9b1cae7109bbecb21cf9d1b2847e550042b8653c54a0e",
     # ═══════════════════════════════════════════════════════════════════════════
     # STAKING PROTOCOL EVENTS
     # ═══════════════════════════════════════════════════════════════════════════
@@ -405,6 +437,41 @@ def decode_log_data(log: dict, event_name: str) -> dict[str, Any]:
             decoded["bad_debt_assets"] = int(data_hex[194:258], 16)
             decoded["bad_debt_shares"] = int(data_hex[258:322], 16)
 
+    # Compound V3 (Comet) Events
+    elif event_name == "CometSupply" and len(topics) >= 3:
+        # Supply(address indexed from, address indexed dst, uint256 amount)
+        decoded["from"] = _extract_address(topics[1])
+        decoded["dst"] = _extract_address(topics[2])
+        data_hex = data.hex() if isinstance(data, bytes) else data
+        if len(data_hex) >= 66:
+            decoded["amount"] = int(data_hex[2:66], 16)
+
+    elif event_name == "CometWithdraw" and len(topics) >= 3:
+        # Withdraw(address indexed src, address indexed to, uint256 amount)
+        decoded["src"] = _extract_address(topics[1])
+        decoded["to"] = _extract_address(topics[2])
+        data_hex = data.hex() if isinstance(data, bytes) else data
+        if len(data_hex) >= 66:
+            decoded["amount"] = int(data_hex[2:66], 16)
+
+    elif event_name == "SupplyCollateral" and len(topics) >= 4:
+        # SupplyCollateral(address indexed from, address indexed dst, address indexed asset, uint256 amount)
+        decoded["from"] = _extract_address(topics[1])
+        decoded["dst"] = _extract_address(topics[2])
+        decoded["asset"] = _extract_address(topics[3])
+        data_hex = data.hex() if isinstance(data, bytes) else data
+        if len(data_hex) >= 66:
+            decoded["amount"] = int(data_hex[2:66], 16)
+
+    elif event_name == "WithdrawCollateral" and len(topics) >= 4:
+        # WithdrawCollateral(address indexed src, address indexed to, address indexed asset, uint256 amount)
+        decoded["src"] = _extract_address(topics[1])
+        decoded["to"] = _extract_address(topics[2])
+        decoded["asset"] = _extract_address(topics[3])
+        data_hex = data.hex() if isinstance(data, bytes) else data
+        if len(data_hex) >= 66:
+            decoded["amount"] = int(data_hex[2:66], 16)
+
     # Fluid Liquidity Events
     elif event_name == "FluidOperate" and len(topics) >= 3:
         # Operate(address indexed user, address indexed token, int256 supplyAmount, int256 borrowAmount, address withdrawTo, address borrowTo, uint256 totalAmounts, uint256 exchangePricesAndConfig)
@@ -438,6 +505,15 @@ def decode_log_data(log: dict, event_name: str) -> dict[str, Any]:
         if len(data_hex) >= 130:
             decoded["order_hash"] = "0x" + data_hex[2:66]
             decoded["remaining_amount"] = int(data_hex[66:130], 16)
+
+    elif event_name == "OneInchV6OrderFilled" and len(topics) >= 2:
+        # 1inch v6 Fusion: OrderFilled(bytes32 indexed orderHash, uint256 remainingAmount)
+        decoded["order_hash"] = (
+            topics[1] if isinstance(topics[1], str) else "0x" + topics[1].hex()
+        )
+        data_hex = data.hex() if isinstance(data, bytes) else data
+        if len(data_hex) >= 66:
+            decoded["remaining_amount"] = int(data_hex[2:66], 16)
 
     elif event_name == "ZeroExTransformedERC20" and len(topics) >= 2:
         # TransformedERC20(address indexed taker, address inputToken, address outputToken, uint256 inputTokenAmount, uint256 outputTokenAmount)
@@ -520,6 +596,72 @@ def decode_log_data(log: dict, event_name: str) -> dict[str, Any]:
             tick_hex = data_hex[258:322]
             tick_val = int(tick_hex, 16)
             decoded["tick"] = tick_val if tick_val < 2**23 else tick_val - 2**24
+
+    # ═══════════════════════════════════════════════════════════════════════════
+    # BASE-NATIVE PROTOCOL EVENTS
+    # ═══════════════════════════════════════════════════════════════════════════
+
+    # Aerodrome DEX Events (Solidly-style AMM pools)
+    elif event_name == "AerodromeSwap" and len(topics) >= 1:
+        # Swap(address sender, address to, uint256 amount0In, uint256 amount1In, uint256 amount0Out, uint256 amount1Out)
+        # All parameters are in data (not indexed)
+        data_hex = data.hex() if isinstance(data, bytes) else data
+        if len(data_hex) >= 386:  # 0x + 6*64 chars
+            decoded["sender"] = "0x" + data_hex[26:66]
+            decoded["to"] = "0x" + data_hex[90:130]
+            decoded["amount0_in"] = int(data_hex[130:194], 16)
+            decoded["amount1_in"] = int(data_hex[194:258], 16)
+            decoded["amount0_out"] = int(data_hex[258:322], 16)
+            decoded["amount1_out"] = int(data_hex[322:386], 16)
+
+    # Clanker Token Factory Events
+    elif event_name == "ClankerTokenCreated" and len(topics) >= 3:
+        # TokenCreated(address indexed token, address indexed creator, string name, string symbol)
+        decoded["token"] = _extract_address(topics[1])
+        decoded["creator"] = _extract_address(topics[2])
+        # name and symbol are in data as dynamic strings - complex to decode, skip for now
+
+    # Zora ERC-1155 Events
+    elif event_name == "TransferSingle" and len(topics) >= 4:
+        # TransferSingle(address indexed operator, address indexed from, address indexed to, uint256 id, uint256 value)
+        decoded["operator"] = _extract_address(topics[1])
+        decoded["from"] = _extract_address(topics[2])
+        decoded["to"] = _extract_address(topics[3])
+        data_hex = data.hex() if isinstance(data, bytes) else data
+        if len(data_hex) >= 130:
+            decoded["token_id"] = int(data_hex[2:66], 16)
+            decoded["value"] = int(data_hex[66:130], 16)
+
+    elif event_name == "TransferBatch" and len(topics) >= 4:
+        # TransferBatch(address indexed operator, address indexed from, address indexed to, uint256[] ids, uint256[] values)
+        decoded["operator"] = _extract_address(topics[1])
+        decoded["from"] = _extract_address(topics[2])
+        decoded["to"] = _extract_address(topics[3])
+        # ids and values are dynamic arrays - store raw data for now
+        decoded["has_batch_data"] = True
+
+    elif event_name == "ZoraCreatorPayoutAddressUpdated" and len(topics) >= 2:
+        # CreatorPayoutAddressUpdated(address indexed newPayoutAddress)
+        decoded["new_payout_address"] = _extract_address(topics[1])
+
+    # Virtuals Protocol Events
+    elif event_name == "VirtualsTokenCreated" and len(topics) >= 3:
+        # TokenCreated(address indexed token, address indexed creator, uint256 virtualId)
+        decoded["token"] = _extract_address(topics[1])
+        decoded["creator"] = _extract_address(topics[2])
+        data_hex = data.hex() if isinstance(data, bytes) else data
+        if len(data_hex) >= 66:
+            decoded["virtual_id"] = int(data_hex[2:66], 16)
+
+    elif event_name == "VirtualsTrade" and len(topics) >= 3:
+        # Trade(address indexed trader, address indexed token, bool isBuy, uint256 tokenAmount, uint256 ethAmount)
+        decoded["trader"] = _extract_address(topics[1])
+        decoded["token"] = _extract_address(topics[2])
+        data_hex = data.hex() if isinstance(data, bytes) else data
+        if len(data_hex) >= 194:
+            decoded["is_buy"] = int(data_hex[2:66], 16) == 1
+            decoded["token_amount"] = int(data_hex[66:130], 16)
+            decoded["eth_amount"] = int(data_hex[130:194], 16)
 
     # ═══════════════════════════════════════════════════════════════════════════
     # STAKING PROTOCOL EVENTS
@@ -826,8 +968,15 @@ class EventFetcher:
 
     def __init__(self, config: dict):
         self.config = config
-        self.year = config.get("year", datetime.now(timezone.utc).year)
-        self.month = config.get("month", datetime.now(timezone.utc).month)
+        # Support both old format (year/month) and new format (time_periods)
+        time_periods = config.get("time_periods")
+        if time_periods:
+            self.time_periods = [(y, m) for y, m in time_periods]
+        else:
+            # Fallback to old format
+            year = config.get("year", datetime.now(timezone.utc).year)
+            month = config.get("month", datetime.now(timezone.utc).month)
+            self.time_periods = [(year, month)]
         self.seed_contracts = config.get("seed_contracts", {})
         self.allowlisted_events = config.get("allowlisted_events", {})
         self.output_config = config.get("output", {})
@@ -1002,6 +1151,8 @@ class EventFetcher:
         event_names: list[str],
         from_block: int,
         to_block: int,
+        year: int | None = None,
+        month: int | None = None,
     ) -> int:
         """Fetch all specified events for a contract using parallel batch processing.
 
@@ -1033,7 +1184,12 @@ class EventFetcher:
         )
 
         # Prepare output file
-        year_month = f"{self.year}_{self.month:02d}"
+        if year is not None and month is not None:
+            year_month = f"{year}_{month:02d}"
+        else:
+            # Fallback to first time period if not specified
+            y, m = self.time_periods[0]
+            year_month = f"{y}_{m:02d}"
         filename = f"{chain_name}_{protocol_name}_{year_month}.csv"
         filepath = self.raw_folder / filename
         fieldnames = None
@@ -1132,9 +1288,9 @@ class EventFetcher:
         print(f"\n  ✓ Completed: {total_events_saved:,} events in {elapsed:.1f}s")
         return total_events_saved
 
-    def _get_existing_files(self, chain_name: str) -> set[str]:
-        """Get set of protocol names that already have files for current year/month."""
-        year_month = f"{self.year}_{self.month:02d}"
+    def _get_existing_files(self, chain_name: str, year: int, month: int) -> set[str]:
+        """Get set of protocol names that already have files for specified year/month."""
+        year_month = f"{year}_{month:02d}"
         pattern = f"{chain_name}_*_{year_month}.csv"
         existing_files = list(self.raw_folder.glob(pattern))
 
@@ -1192,14 +1348,19 @@ class EventFetcher:
             writer.writerows(events)
 
     def _save_contract_events(
-        self, chain_name: str, protocol_name: str, events: list[dict]
+        self,
+        chain_name: str,
+        protocol_name: str,
+        events: list[dict],
+        year: int,
+        month: int,
     ):
         """Save events for a single contract to CSV immediately."""
         if not events:
             print(f"    No events to save for {protocol_name}")
             return
 
-        year_month = f"{self.year}_{self.month:02d}"
+        year_month = f"{year}_{month:02d}"
         filename = f"{chain_name}_{protocol_name}_{year_month}.csv"
         filepath = self.raw_folder / filename
 
@@ -1249,86 +1410,92 @@ class EventFetcher:
         """
         all_events = {}
 
-        # Calculate time window for the specified month
-        start_time = datetime(self.year, self.month, 1, tzinfo=timezone.utc)
-        _, last_day = calendar.monthrange(self.year, self.month)
-        end_time = datetime(
-            self.year, self.month, last_day, 23, 59, 59, tzinfo=timezone.utc
-        )
-
-        start_timestamp = int(start_time.timestamp())
-        end_timestamp = int(end_time.timestamp())
-
         print("═" * 79)
         print("ChainRank Event Fetcher")
         print("═" * 79)
-        print(f"Time window: {start_time.isoformat()} to {end_time.isoformat()}")
-        print(f"Year: {self.year}, Month: {self.month}")
+        print(f"Time periods: {self.time_periods}")
         print()
 
-        # Iterate through chains
-        for chain_name in self.chains:
-            if chains_filter and chain_name not in chains_filter:
-                continue
+        # Iterate through time periods
+        for year, month in self.time_periods:
+            # Calculate time window for the specified month
+            start_time = datetime(year, month, 1, tzinfo=timezone.utc)
+            _, last_day = calendar.monthrange(year, month)
+            end_time = datetime(year, month, last_day, 23, 59, 59, tzinfo=timezone.utc)
 
-            print("─" * 79)
-            print(f"Chain: {chain_name}")
-            print("─" * 79)
+            start_timestamp = int(start_time.timestamp())
+            end_timestamp = int(end_time.timestamp())
 
-            try:
-                w3 = self._get_web3(chain_name)
-                if not w3.is_connected():
-                    print(f"  ✗ Failed to connect to {chain_name}")
+            print("═" * 79)
+            print(f"Time period: {year}-{month:02d}")
+            print(f"Time window: {start_time.isoformat()} to {end_time.isoformat()}")
+            print("═" * 79)
+
+            # Iterate through chains
+            for chain_name in self.chains:
+                if chains_filter and chain_name not in chains_filter:
                     continue
 
-                # Get block range for the month
-                from_block = get_block_by_timestamp(w3, start_timestamp)
-                to_block = get_block_by_timestamp(w3, end_timestamp)
-                print(f"  Block range: {from_block} to {to_block}")
+                print("─" * 79)
+                print(f"Chain: {chain_name}")
+                print("─" * 79)
 
-            except Exception as e:
-                print(f"  ✗ Error connecting to {chain_name}: {e}")
-                continue
+                try:
+                    w3 = self._get_web3(chain_name)
+                    if not w3.is_connected():
+                        print(f"  ✗ Failed to connect to {chain_name}")
+                        continue
 
-            # Get existing files for this chain
-            existing_protocols = self._get_existing_files(chain_name)
-            if existing_protocols:
-                print(f"  Already fetched: {', '.join(sorted(existing_protocols))}")
+                    # Get block range for the month
+                    from_block = get_block_by_timestamp(w3, start_timestamp)
+                    to_block = get_block_by_timestamp(w3, end_timestamp)
+                    print(f"  Block range: {from_block} to {to_block}")
 
-            # Iterate through protocols
-            for protocol_name, addresses in self.seed_contracts.items():
-                if contract_filter and protocol_name.lower() != contract_filter:
-                    continue
-                if chain_name not in addresses:
+                except Exception as e:
+                    print(f"  ✗ Error connecting to {chain_name}: {e}")
                     continue
 
-                # Skip if already fetched
-                if protocol_name in existing_protocols:
-                    print(f"\n  Skipping {protocol_name}: already exists in raw/")
-                    continue
+                # Get existing files for this chain and time period
+                existing_protocols = self._get_existing_files(chain_name, year, month)
+                if existing_protocols:
+                    print(f"  Already fetched: {', '.join(sorted(existing_protocols))}")
 
-                contract_address = addresses[chain_name]
-                event_names = self.allowlisted_events.get(protocol_name, [])
+                # Iterate through protocols
+                for protocol_name, addresses in self.seed_contracts.items():
+                    if contract_filter and protocol_name.lower() != contract_filter:
+                        continue
+                    if chain_name not in addresses:
+                        continue
 
-                if not event_names:
-                    print(f"  Skipping {protocol_name}: no allowlisted events")
-                    continue
+                    # Skip if already fetched
+                    if protocol_name in existing_protocols:
+                        print(f"\n  Skipping {protocol_name}: already exists in raw/")
+                        continue
 
-                print(f"\n  Protocol: {protocol_name}")
-                print(f"  Contract: {contract_address}")
-                print(f"  Events: {', '.join(event_names)}")
+                    contract_address = addresses[chain_name]
+                    event_names = self.allowlisted_events.get(protocol_name, [])
 
-                event_count = self.fetch_events_for_contract(
-                    chain_name,
-                    protocol_name,
-                    contract_address,
-                    event_names,
-                    from_block,
-                    to_block,
-                )
+                    if not event_names:
+                        print(f"  Skipping {protocol_name}: no allowlisted events")
+                        continue
 
-                key = f"{chain_name}_{protocol_name}"
-                all_events[key] = event_count
+                    print(f"\n  Protocol: {protocol_name}")
+                    print(f"  Contract: {contract_address}")
+                    print(f"  Events: {', '.join(event_names)}")
+
+                    event_count = self.fetch_events_for_contract(
+                        chain_name,
+                        protocol_name,
+                        contract_address,
+                        event_names,
+                        from_block,
+                        to_block,
+                        year,
+                        month,
+                    )
+
+                    key = f"{chain_name}_{protocol_name}_{year}_{month:02d}"
+                    all_events[key] = event_count
 
         print(f"\nOutput folder: {self.raw_folder.absolute()}")
         return all_events
@@ -1378,14 +1545,15 @@ def main():
 
     config = load_config(config_path)
 
-    # Override config with CLI args
-    if args.year:
-        config["year"] = args.year
-    if args.month:
+    # Override config with CLI args (converts to time_periods format)
+    if args.year and args.month:
         if not 1 <= args.month <= 12:
             print(f"Error: Month must be between 1 and 12, got {args.month}")
             return 1
-        config["month"] = args.month
+        config["time_periods"] = [[args.year, args.month]]
+    elif args.year or args.month:
+        print("Error: Both --year and --month must be specified together")
+        return 1
 
     # Parse chains filter
     chains_filter = None

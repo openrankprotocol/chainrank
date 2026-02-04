@@ -1,35 +1,40 @@
 # ChainRank Event Indexer Configuration
 # ═══════════════════════════════════════════════════════════════════════════════
 
-# Time window for fetching events
-year = 2025
-month = 12
+# Time windows for fetching events
+# Each entry is a [year, month] pair
+time_periods = [
+    [2025, 12],
+    [2025, 11],
+]
 
-# ═══════════════════════════════════════════════════════════════════════════════
 # SEED CONTRACTS
-# ═══════════════════════════════════════════════════════════════════════════════
-
 # USDC Token contract
 [seed_contracts.usdc]
 ethereum = "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48"
+base = "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913"
 
 # USDT Token contract
 [seed_contracts.usdt]
 ethereum = "0xdAC17F958D2ee523a2206206994597C13D831ec7"
+base = "0xfde4C96c8593536E31F229EA8f37b2ADa2699bb2"
 
 # WBTC Token contract
 [seed_contracts.wbtc]
 ethereum = "0x2260FAC5E5542a773Aa44fBCfeDf7C193bc2C599"
+base = "0x0555E30da8f98308EdB960aa94C0Db47230d2B9c"
 
 # DAI Token contract
 [seed_contracts.dai]
 ethereum = "0x6B175474E89094C44Da98b954EedeAC495271d0F"
+base = "0x50c5725949A6F0c72E6C4a641F24049A917DB0Cb"
 
 # WETH Token contract
 [seed_contracts.weth]
 ethereum = "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2"
+base = "0x4200000000000000000000000000000000000006"
 
-# Aave V3 Pool contract
+# Aave V3 Pool contract (Ethereum only)
 [seed_contracts.aave]
 ethereum = "0x87870Bca3F3fD6335C3F4ce8392D69350B4fA4E2"
 
@@ -53,7 +58,11 @@ ethereum = "0xccF4429DB6322D5C611ee964527D42E5d685DD6a"
 [seed_contracts.compound_comptroller]
 ethereum = "0x3d9819210A31b4961b30EF54bE2aeD79B9c9Cd3B"
 
-# Morpho Blue (Lending)
+# Compound V3 (Comet) USDC market (Ethereum only)
+[seed_contracts.compound_v3_usdc]
+ethereum = "0xc3d688B66703497DAA19211EEdff47f25384cdc3"
+
+# Morpho Blue (Lending) - Ethereum only
 [seed_contracts.morpho_blue]
 ethereum = "0xBBBBBbbBBb9cC5e90e3b3Af64bdAF62C37EEFFCb"
 
@@ -61,7 +70,7 @@ ethereum = "0xBBBBBbbBBb9cC5e90e3b3Af64bdAF62C37EEFFCb"
 [seed_contracts.spark]
 ethereum = "0xC13e21B648A5Ee794902342038FF3aDAB66BE987"
 
-# Fluid Liquidity (Lending + DEX)
+# Fluid Liquidity (Lending + DEX) - Ethereum only
 [seed_contracts.fluid]
 ethereum = "0x52Aa899454998Be5b000Ad077a46Bbe360F4e497"
 
@@ -76,32 +85,42 @@ ethereum = "0xc56413869c6CDf96496f2b1eF801fEDBdFA7dDB0"
 ethereum = "0x028eC7330ff87667b6dfb0D94b954c820195336c"
 
 # DEX Aggregators
+# 1inch v5 on Ethereum, v6 on Base
 [seed_contracts.oneinch]
 ethereum = "0x1111111254EEB25477B68fb85Ed929f73A960582"
+base = "0x111111125421cA6dc452d289314280a0f8842A65"
 
 [seed_contracts.zeroex]
 ethereum = "0xDef1C0ded9bec7F1a1670819833240f027b25EfF"
+# No active 0x on Base
 
 [seed_contracts.paraswap]
 ethereum = "0xDEF171Fe48CF0115B1d80b88dc8eAB59176FEe57"
+# No active Paraswap on Base
 
 [seed_contracts.cowswap]
 ethereum = "0x9008D19f58AAbD9eD0D60971565AA8510560ab41"
+base = "0x9008D19f58AAbD9eD0D60971565AA8510560ab41"
 
 # Uniswap V3 Pools (top liquidity pools)
 # USDC/ETH 0.05%
 [seed_contracts.uniswap_v3_usdc_eth]
 ethereum = "0x88e6A0c2dDD26FEEb64F039a2c41296FcB3f5640"
+base = "0xd0b53D9277642d899DF5C87A3966A349A798F224"
 
-# WBTC/ETH 0.3%
+# WBTC/ETH 0.3% (Ethereum only - no WBTC on Base)
 [seed_contracts.uniswap_v3_wbtc_eth]
 ethereum = "0xCBCdF9626bC03E24f779434178A73a0B4bad62eD"
+
+# cbBTC/WETH 0.3% (Base only - Coinbase wrapped BTC)
+[seed_contracts.uniswap_v3_cbbtc_weth]
+base = "0x70aCDF2Ad0bf2402C957154f944c19Ef4e1cbAE1"
 
 # USDC/USDT 0.01%
 [seed_contracts.uniswap_v3_usdc_usdt]
 ethereum = "0x3416cF6C708Da44DB2624D63ea0AAef7113527C6"
 
-# DAI/USDC 0.01%
+# DAI/USDC 0.01% (Ethereum only - low activity on Base)
 [seed_contracts.uniswap_v3_dai_usdc]
 ethereum = "0x5777d92f208679DB4b9778590Fa3CAB3aC9e2168"
 
@@ -110,7 +129,31 @@ ethereum = "0x5777d92f208679DB4b9778590Fa3CAB3aC9e2168"
 ethereum = "0x11b815efB8f581194ae79006d24E0d814B7697F6"
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# STAKING PROTOCOLS
+# BASE-NATIVE PROTOCOLS
+# ═══════════════════════════════════════════════════════════════════════════════
+
+# Aerodrome - Largest DEX on Base (~$1.5B+ TVL)
+# CL (concentrated liquidity) pools use UniswapV3-style Swap event
+# Basic AMM pools use Solidly-style Swap event
+
+# Aerodrome WETH/USDC CL pool (concentrated liquidity) - highest volume
+[seed_contracts.aerodrome_cl_weth_usdc]
+base = "0xb2cc224c1c9feE385f8ad6a55b4d94E92359DC59"
+
+# Aerodrome USDC/cbBTC CL pool
+[seed_contracts.aerodrome_cl_usdc_cbbtc]
+base = "0xdbc6998296caA1652A810dc8D3BaF4A8294330f1"
+
+# Aerodrome WETH/cbBTC CL pool
+[seed_contracts.aerodrome_cl_weth_cbbtc]
+base = "0xb4CB800910B228ED3d0834cF79D697127BBB00e5"
+
+# Aerodrome WETH/USDC basic AMM pool (V2 style)
+[seed_contracts.aerodrome_v2_weth_usdc]
+base = "0xB4885Bc63399BF5518b994c1d0C153334Ee579D0"
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# STAKING PROTOCOLS (Ethereum only)
 # ═══════════════════════════════════════════════════════════════════════════════
 
 # Lido - Liquid Staking (~$25B+ TVL)
@@ -129,8 +172,6 @@ ethereum = "0x858646372CC42E1A627fcE94aa7A7033e7CF075A"
 
 [seed_contracts.eigenlayer_delegation_manager]
 ethereum = "0x39053D51B77DC0d36036Fc1fCc8Cb819df8Ef37A"
-
-
 
 # Rocket Pool - Decentralized Liquid Staking (~$3B+ TVL)
 [seed_contracts.rocketpool_reth]
@@ -163,7 +204,7 @@ ethereum = "0xac3E018457B222d93114458476f3E3416Abbe38F"
 ethereum = "0xbAFA44EFE7901E04E39Dad13167D089C559c1138"
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# STAKING AGGREGATORS / LIQUID RESTAKING PROTOCOLS
+# STAKING AGGREGATORS / LIQUID RESTAKING PROTOCOLS (Ethereum only)
 # ═══════════════════════════════════════════════════════════════════════════════
 
 # Renzo - Liquid Restaking (~$3B TVL)
@@ -242,6 +283,12 @@ compound_comptroller = [
     "DistributedSupplierComp",
     "DistributedBorrowerComp"
 ]
+compound_v3_usdc = [
+    "CometSupply",
+    "CometWithdraw",
+    "SupplyCollateral",
+    "WithdrawCollateral"
+]
 morpho_blue = [
     "MorphoSupply",
     "MorphoWithdraw",
@@ -272,7 +319,8 @@ yearn_dai = [
     "YearnWithdraw"
 ]
 oneinch = [
-    "OneInchSwapped"
+    "OneInchSwapped",
+    "OneInchV6OrderFilled"
 ]
 zeroex = [
     "ZeroExTransformedERC20"
@@ -304,6 +352,9 @@ uniswap_v3_usdc_eth = [
 uniswap_v3_wbtc_eth = [
     "UniswapV3Swap"
 ]
+uniswap_v3_cbbtc_weth = [
+    "UniswapV3Swap"
+]
 uniswap_v3_usdc_usdt = [
     "UniswapV3Swap"
 ]
@@ -312,6 +363,22 @@ uniswap_v3_dai_usdc = [
 ]
 uniswap_v3_weth_usdt = [
     "UniswapV3Swap"
+]
+
+# Base-native protocol events
+# Aerodrome CL pools use same event as Uniswap V3
+aerodrome_cl_weth_usdc = [
+    "UniswapV3Swap"
+]
+aerodrome_cl_usdc_cbbtc = [
+    "UniswapV3Swap"
+]
+aerodrome_cl_weth_cbbtc = [
+    "UniswapV3Swap"
+]
+# Aerodrome V2-style AMM pools use Solidly-style Swap event
+aerodrome_v2_weth_usdc = [
+    "AerodromeSwap"
 ]
 
 # Lido staking events
@@ -337,7 +404,6 @@ eigenlayer_delegation_manager = [
     "EigenStakerDelegated",
     "EigenStakerUndelegated"
 ]
-
 
 # Rocket Pool staking events
 rocketpool_reth = [
@@ -428,6 +494,7 @@ max_retries = 3
 retry_delay_seconds = 1
 rate_limit_per_second = 10
 parallel_batches = 10
+parallel_requests = 100
 save_interval_batches = 10
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -493,6 +560,13 @@ LiquidateBorrow_liquidated = -1.5
 DistributedSupplierComp = 0.5         # COMP rewards for supplying
 DistributedBorrowerComp = 0.5         # COMP rewards for borrowing
 
+# Compound V3 (Comet) trust weights
+[trust_weights.compound_v3_usdc]
+CometSupply = 1.0                     # Supply base asset
+CometWithdraw = 0.3                   # Withdraw base asset
+SupplyCollateral = 1.0                # Supply collateral
+WithdrawCollateral = 0.3              # Withdraw collateral
+
 # Morpho Blue trust weights
 [trust_weights.morpho_blue]
 MorphoSupply = 1.0                    # Deposit collateral
@@ -533,7 +607,8 @@ YearnWithdraw = 0.3                   # User withdraws from vault
 
 # DEX Aggregator trust weights
 [trust_weights.oneinch]
-OneInchSwapped = 0.7                  # User swapped via 1inch
+OneInchSwapped = 0.7                  # User swapped via 1inch v5
+OneInchV6OrderFilled = 0.7            # User swapped via 1inch v6 (Fusion)
 
 [trust_weights.zeroex]
 ZeroExTransformedERC20 = 0.7          # User swapped via 0x
@@ -565,6 +640,9 @@ UniswapV3Swap = 0.6                   # Swap on USDC/ETH pool
 [trust_weights.uniswap_v3_wbtc_eth]
 UniswapV3Swap = 0.6                   # Swap on WBTC/ETH pool
 
+[trust_weights.uniswap_v3_cbbtc_weth]
+UniswapV3Swap = 0.6                   # Swap on cbBTC/WETH pool (Base)
+
 [trust_weights.uniswap_v3_usdc_usdt]
 UniswapV3Swap = 0.6                   # Swap on USDC/USDT pool
 
@@ -573,6 +651,24 @@ UniswapV3Swap = 0.6                   # Swap on DAI/USDC pool
 
 [trust_weights.uniswap_v3_weth_usdt]
 UniswapV3Swap = 0.6                   # Swap on WETH/USDT pool
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# BASE-NATIVE PROTOCOL TRUST WEIGHTS
+# ═══════════════════════════════════════════════════════════════════════════════
+
+# Aerodrome DEX trust weights (CL pools)
+[trust_weights.aerodrome_cl_weth_usdc]
+UniswapV3Swap = 0.6                   # Swap on WETH/USDC CL pool
+
+[trust_weights.aerodrome_cl_usdc_cbbtc]
+UniswapV3Swap = 0.6                   # Swap on USDC/cbBTC CL pool
+
+[trust_weights.aerodrome_cl_weth_cbbtc]
+UniswapV3Swap = 0.6                   # Swap on WETH/cbBTC CL pool
+
+# Aerodrome DEX trust weights (V2 pools)
+[trust_weights.aerodrome_v2_weth_usdc]
+AerodromeSwap = 0.6                   # Swap on WETH/USDC V2 pool
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # STAKING PROTOCOL TRUST WEIGHTS
@@ -599,8 +695,6 @@ EigenOperatorSharesIncreased = 1.0    # Operator receives delegated shares
 EigenOperatorSharesDecreased = 0.3    # Operator loses delegated shares
 EigenStakerDelegated = 0.8            # User delegates to operator
 EigenStakerUndelegated = 0.3          # User undelegates from operator
-
-
 
 # Rocket Pool - Decentralized Staking
 [trust_weights.rocketpool_reth]

@@ -55,14 +55,53 @@ def find_raw_files_by_chain_year_month(
     return sorted(csv_files)
 
 
-def find_all_raw_files_by_chain(raw_folder: Path, chain: str) -> list[Path]:
-    """Find all raw event CSV files for a specific chain (excluding ens_names and cex_addresses)."""
+def find_all_raw_files_by_chain(
+    raw_folder: Path, chain: str, config: dict | None = None
+) -> list[Path]:
+    """Find all raw event CSV files for a specific chain.
+
+    If config is provided, only returns files for protocols defined in seed_contracts.
+    Otherwise returns all CSV files for the chain (excluding ens_names and cex_addresses).
+    """
     pattern = f"{chain}_*.csv"
     csv_files = [
         f
         for f in raw_folder.glob(pattern)
         if not f.name.startswith("ens_names") and not f.name.startswith("cex_")
     ]
+
+    # Filter by protocols in config if provided
+    if config:
+        seed_contracts = config.get("seed_contracts", {})
+        # Get protocols that have this chain defined
+        valid_protocols = set()
+        for protocol_name, addresses in seed_contracts.items():
+            if chain in addresses:
+                valid_protocols.add(protocol_name)
+
+        # Filter files to only include those for valid protocols
+        # File names are like: {chain}_{protocol}_{year}_{month}.csv
+        filtered_files = []
+        for f in csv_files:
+            # Extract protocol name from filename
+            parts = f.stem.split("_")
+            if len(parts) >= 2:
+                # Protocol name is everything between chain and year/month
+                # e.g., "base_aerodrome_cl_weth_usdc_2025_01" -> "aerodrome_cl_weth_usdc"
+                # Find where the year starts (4-digit number)
+                year_idx = None
+                for i, part in enumerate(parts):
+                    if part.isdigit() and len(part) == 4:
+                        year_idx = i
+                        break
+
+                if year_idx and year_idx > 1:
+                    protocol_name = "_".join(parts[1:year_idx])
+                    if protocol_name in valid_protocols:
+                        filtered_files.append(f)
+
+        csv_files = filtered_files
+
     return sorted(csv_files)
 
 
@@ -77,21 +116,61 @@ def find_latest_raw_file(raw_folder: Path, prefix: str = "ethereum_") -> Path | 
 
 
 def find_ens_files(raw_folder: Path) -> list[Path]:
-    """Find all ENS names CSV files (ens_names_*.csv)."""
-    ens_files = sorted(raw_folder.glob("ens_names_*.csv"))
-    return ens_files
+    """Find all ENS names CSV files.
+
+    Matches patterns like:
+    - ens_names_ethereum_2025.csv
+    - ens_names_base_2025.csv
+    - ens_names_2025.csv (legacy format)
+    - dune_ens_names.csv (legacy format)
+    """
+    ens_files = []
+
+    # New format: ens_names_{chain}_{year}.csv
+    ens_files.extend(raw_folder.glob("ens_names_*_*.csv"))
+
+    # Legacy format: ens_names_{year}.csv
+    for f in raw_folder.glob("ens_names_*.csv"):
+        # Skip if already matched by chain_year pattern
+        if f not in ens_files:
+            ens_files.append(f)
+
+    # Legacy format: dune_ens_names.csv
+    dune_ens = raw_folder / "dune_ens_names.csv"
+    if dune_ens.exists() and dune_ens not in ens_files:
+        ens_files.append(dune_ens)
+
+    return sorted(set(ens_files))
 
 
 def load_ens_names(ens_paths: list[Path]) -> set[str]:
-    """Load ENS names mapping from multiple files and return set of addresses with ENS."""
+    """Load ENS names mapping from multiple files and return set of addresses with ENS.
+
+    Handles multiple CSV formats:
+    - address,ens_name (new format)
+    - address,name (legacy format)
+    - blockchain,address,name (dune format)
+    """
     ens_addresses = set()
     for ens_path in ens_paths:
-        with open(ens_path, "r") as f:
+        count_before = len(ens_addresses)
+        file_count = 0
+        with open(ens_path, "r", encoding="utf-8") as f:
             reader = csv.DictReader(f)
             for row in reader:
-                address = row.get("address", "").lower()
-                if address:
+                # Try different column names for address
+                address = (
+                    (row.get("address", "") or row.get("owner", "")).lower().strip()
+                )
+
+                # Validate address format
+                if address and address.startswith("0x") and len(address) == 42:
                     ens_addresses.add(address)
+                    file_count += 1
+
+        new_unique = len(ens_addresses) - count_before
+        print(f"    {ens_path.name}: {file_count:,} addresses ({new_unique:,} new)")
+
     return ens_addresses
 
 
@@ -467,13 +546,101 @@ class TrustCalculator:
                     comp_delta = int(row["comp_delta"])
                 except (ValueError, TypeError):
                     comp_delta = 0
-            # COMP has 18 decimals
-            amount_normalized = comp_delta / 1e18
+            amount_normalized = comp_delta / (10**decimals)
             if borrower:
                 flows.append(
                     (
                         contract_address,
                         borrower,
+                        amount_normalized,
+                        event_name,
+                        protocol,
+                        False,
+                    )
+                )
+
+        # Compound V3 (Comet) Events
+        elif event_name == "CometSupply":
+            # User supplies base asset to Compound V3
+            supplier = row.get("from", "").lower()
+            amount = 0
+            if "amount" in row and row["amount"]:
+                try:
+                    amount = int(row["amount"])
+                except (ValueError, TypeError):
+                    amount = 0
+            amount_normalized = amount / (10**decimals)
+            if supplier:
+                flows.append(
+                    (
+                        supplier,
+                        contract_address,
+                        amount_normalized,
+                        event_name,
+                        protocol,
+                        False,
+                    )
+                )
+
+        elif event_name == "CometWithdraw":
+            # User withdraws base asset from Compound V3
+            withdrawer = row.get("src", "").lower()
+            amount = 0
+            if "amount" in row and row["amount"]:
+                try:
+                    amount = int(row["amount"])
+                except (ValueError, TypeError):
+                    amount = 0
+            amount_normalized = amount / (10**decimals)
+            if withdrawer:
+                flows.append(
+                    (
+                        contract_address,
+                        withdrawer,
+                        amount_normalized,
+                        event_name,
+                        protocol,
+                        False,
+                    )
+                )
+
+        elif event_name == "SupplyCollateral":
+            # User supplies collateral to Compound V3
+            supplier = row.get("from", "").lower()
+            amount = 0
+            if "amount" in row and row["amount"]:
+                try:
+                    amount = int(row["amount"])
+                except (ValueError, TypeError):
+                    amount = 0
+            amount_normalized = amount / (10**decimals)
+            if supplier:
+                flows.append(
+                    (
+                        supplier,
+                        contract_address,
+                        amount_normalized,
+                        event_name,
+                        protocol,
+                        False,
+                    )
+                )
+
+        elif event_name == "WithdrawCollateral":
+            # User withdraws collateral from Compound V3
+            withdrawer = row.get("src", "").lower()
+            amount = 0
+            if "amount" in row and row["amount"]:
+                try:
+                    amount = int(row["amount"])
+                except (ValueError, TypeError):
+                    amount = 0
+            amount_normalized = amount / (10**decimals)
+            if withdrawer:
+                flows.append(
+                    (
+                        contract_address,
+                        withdrawer,
                         amount_normalized,
                         event_name,
                         protocol,
@@ -725,7 +892,7 @@ class TrustCalculator:
 
         # DEX Aggregator Events
         elif event_name == "OneInchSwapped":
-            # 1inch OrderFilled - maker is the user who filled the order
+            # 1inch v5 OrderFilled - maker is the user who filled the order
             maker = row.get("maker", "").lower()
             remaining_amount = 0
             if "remaining_amount" in row and row["remaining_amount"]:
@@ -738,6 +905,29 @@ class TrustCalculator:
                 flows.append(
                     (
                         maker,
+                        contract_address,
+                        amount_normalized,
+                        event_name,
+                        protocol,
+                        False,
+                    )
+                )
+
+        elif event_name == "OneInchV6OrderFilled":
+            # 1inch v6 Fusion OrderFilled - uses transaction sender as user
+            # The v6 event doesn't have maker in topics, so we use tx_from
+            tx_from = row.get("tx_from", "").lower()
+            remaining_amount = 0
+            if "remaining_amount" in row and row["remaining_amount"]:
+                try:
+                    remaining_amount = int(row["remaining_amount"])
+                except (ValueError, TypeError):
+                    remaining_amount = 0
+            amount_normalized = remaining_amount / (10**decimals)
+            if tx_from:
+                flows.append(
+                    (
+                        tx_from,
                         contract_address,
                         amount_normalized,
                         event_name,
@@ -1692,10 +1882,8 @@ def main():
 
     if ens_paths:
         print(f"ENS files: {len(ens_paths)} file(s)")
-        for p in ens_paths:
-            print(f"  - {p.name}")
         ens_addresses = load_ens_names(ens_paths)
-        print(f"Loaded {len(ens_addresses):,} ENS-verified addresses")
+        print(f"  Total: {len(ens_addresses):,} unique ENS-verified addresses")
     else:
         print("No ENS file found - proceeding without ENS verification multiplier")
         ens_addresses = set()
@@ -1724,8 +1912,8 @@ def main():
     if args.input:
         input_paths = [Path(args.input)]
     else:
-        # Use all raw files for the chain
-        input_paths = find_all_raw_files_by_chain(calculator.raw_folder, chain)
+        # Use all raw files for the chain (filtered by protocols in config)
+        input_paths = find_all_raw_files_by_chain(calculator.raw_folder, chain, config)
 
     if not input_paths:
         print(f"Error: No input files found")

@@ -66,10 +66,11 @@ python calculate_trust.py --config config.toml --input raw/ethereum_aave_2024010
 
 ### 4. Fetch ENS Names (Optional)
 
-Resolve ENS names for scored addresses:
+Fetch ENS name registration events for a specific chain and year:
 
 ```bash
-python fetch_ens_names.py --config config.toml
+python fetch_ens_names.py --chain ethereum --year 2025
+python fetch_ens_names.py --chain base --year 2024
 ```
 
 ### 5. Map Identities
@@ -95,14 +96,14 @@ The `config.toml` file contains:
 
 Events are weighted based on their trust implications:
 
-| Category | Positive Weight | Negative Weight |
-|----------|----------------|-----------------|
-| Supply/Deposit | +1.0 | - |
-| Repay | +1.0 | - |
-| Liquidator | +0.5 | - |
-| Borrow | - | -0.5 |
-| Withdraw | - | -0.5 |
-| Liquidated | - | -1.0 |
+| Category | Weight | Description |
+|----------|--------|-------------|
+| Supply/Deposit | 1.0 | Baseline trust - capital commitment |
+| Repay | 1.5 | Highest trust - fulfilled debt obligation |
+| Liquidator | 1.2 | Maintains protocol health |
+| Borrow | 0.4 | Creates debt - trust depends on repayment |
+| Withdraw | 0.3 | Normal behavior, reduces commitment |
+| Liquidated | -1.5 | Failed position management |
 
 ### Trust Formula
 
